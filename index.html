@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>深夜審核台 · Night Shift</title>
+<meta name="description" content="一款文字心理恐怖小品。你是夜班內容審核員——但這個系統，正在審核你。">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07090b">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%91%81</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap">
+
+<style>
+  :root{
+    --void:#07090b;
+    --panel:#0d1316;
+    --panel-2:#101a1e;
+    --border:#1d2b2f;
+    --hair:#15211f;
+    --text:#c6d4cf;
+    --dim:#718580;
+    --faint:#43524f;
+    --phos:#4fe3c1;
+    --phos-dim:#2b8f7d;
+    --alert:#ff4360;
+    --warn:#ffb454;
+    --magenta:#ff2d78;
+    --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #0c1417 0%, var(--void) 60%),
+      var(--void);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:15px;
+    line-height:1.6;
+    min-height:100dvh;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    justify-content:center;
+    padding:24px 16px 64px;
+  }
+
+  /* CRT overlay */
+  body::after{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:9;
+    background:repeating-linear-gradient(
+      to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.22) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode:multiply;
+    animation:flick 6s steps(60) infinite;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:8;
+    background:radial-gradient(130% 100% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+  @keyframes flick{ 0%,97%{opacity:.5} 98%{opacity:.32} 99%{opacity:.6} 100%{opacity:.5} }
+
+  .machine{
+    width:100%; max-width:660px; position:relative; z-index:10;
+  }
+
+  /* ---- title bar ---- */
+  .bar{
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--border);
+    border-bottom:none;
+    background:linear-gradient(var(--panel-2), var(--panel));
+    padding:9px 14px;
+    font-size:12px; letter-spacing:.06em; color:var(--dim);
+    text-transform:uppercase;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; background:var(--phos-dim); box-shadow:0 0 6px var(--phos-dim); }
+  .bar .sys{ color:var(--phos); }
+  .bar .spacer{ flex:1; }
+  .clock{ font-variant-numeric:tabular-nums; color:var(--text); }
+
+  /* ---- status strip ---- */
+  .status{
+    display:grid; grid-template-columns:1fr 1fr 1fr;
+    border:1px solid var(--border);
+    border-bottom:none;
+    background:var(--panel);
+  }
+  .stat{ padding:10px 14px; border-right:1px solid var(--hair); }
+  .stat:last-child{ border-right:none; }
+  .stat .k{ font-size:10.5px; letter-spacing:.12em; color:var(--faint); text-transform:uppercase; }
+  .stat .v{ font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:2px; }
+  #comply .v{ color:var(--phos); transition:color .5s; }
+  #comply.low .v{ color:var(--warn); }
+  #comply.crit .v{ color:var(--alert); }
+  #queue .v{ color:var(--text); }
+  #queue.surge .v{ color:var(--alert); }
+
+  /* ---- stage ---- */
+  .stage{
+    border:1px solid var(--border);
+    background:var(--panel);
+    min-height:300px;
+    padding:22px 20px;
+    position:relative;
+  }
+
+  .sysline{ color:var(--phos); margin:0 0 2px; }
+  .sysline .caret{ color:var(--phos); animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{opacity:0} }
+
+  .prompt-hint{ color:var(--faint); font-size:12px; margin-top:16px; }
+
+  /* case card */
+  .case{ }
+  .case .meta{
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+    font-size:12px; color:var(--dim); padding-bottom:12px;
+    border-bottom:1px dashed var(--hair);
+  }
+  .case .meta .who{ color:var(--text); font-weight:500; }
+  .case .meta .handle{ color:var(--phos-dim); }
+  .case .meta .t{ margin-left:auto; font-variant-numeric:tabular-nums; }
+  .case .tag{
+    display:inline-block; margin-top:14px;
+    font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--warn); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    padding:2px 8px; border-radius:2px;
+  }
+  .case .body{
+    font-family:var(--sans); font-weight:300; font-size:18px; line-height:1.65;
+    color:#dbe6e2; margin:14px 0 4px; text-wrap:pretty;
+  }
+
+  .glitch{ position:relative; color:var(--magenta); text-shadow:1px 0 var(--phos), -1px 0 var(--alert); }
+  .glitch.run{ animation:gl .18s steps(2) 3; }
+  @keyframes gl{ 0%{transform:translate(0)} 25%{transform:translate(-1px,1px)} 50%{transform:translate(1px,-1px)} 100%{transform:translate(0)} }
+
+  /* controls */
+  .controls{ display:flex; gap:12px; margin-top:26px; }
+  button.act{
+    flex:1; font-family:var(--mono); font-size:13px; letter-spacing:.08em;
+    text-transform:uppercase; padding:13px 10px; cursor:pointer;
+    background:transparent; color:var(--text);
+    border:1px solid var(--border); border-radius:2px;
+    transition:.16s; position:relative;
+  }
+  button.act:hover{ border-color:var(--phos); color:var(--phos); box-shadow:0 0 14px -4px var(--phos); }
+  button.act.rm:hover{ border-color:var(--alert); color:var(--alert); box-shadow:0 0 14px -4px var(--alert); }
+  button.act:focus-visible{ outline:2px solid var(--phos); outline-offset:2px; }
+  button.cont{
+    margin-top:24px; font-family:var(--mono); font-size:13px; letter-spacing:.08em;
+    background:transparent; color:var(--phos); border:1px solid var(--phos-dim);
+    padding:10px 22px; border-radius:2px; cursor:pointer; transition:.16s;
+  }
+  button.cont:hover{ background:color-mix(in srgb,var(--phos) 12%,transparent); box-shadow:0 0 14px -5px var(--phos); }
+  button.cont:focus-visible{ outline:2px solid var(--phos); outline-offset:2px; }
+
+  /* ---- log ---- */
+  .log{
+    border:1px solid var(--border); border-top:none;
+    background:#0a1013; padding:10px 14px;
+    font-size:11.5px; color:var(--faint); line-height:1.7;
+    height:96px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end;
+  }
+  .log .l{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .log .l.warn{ color:var(--warn); }
+  .log .l.bad{ color:var(--alert); }
+  .log .l.sys{ color:var(--phos-dim); }
+
+  .end .body{ color:var(--phos); }
+  .end .sub{ color:var(--dim); font-family:var(--sans); font-weight:300; margin-top:10px; }
+
+  @media (prefers-reduced-motion: reduce){
+    body::after{ animation:none; }
+    .glitch.run{ animation:none; }
+    .sysline .caret{ animation:none; }
+  }
+  @media (max-width:480px){
+    body{ padding:14px 10px 48px; }
+    .case .body{ font-size:17px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="machine" role="application" aria-label="深夜審核台">
+  <div class="bar">
+    <span class="dot"></span>
+    <span class="sys">NCMS</span><span>夜間內容審核系統&nbsp;v4.2.1</span>
+    <span class="spacer"></span>
+    <span>操作員&nbsp;#4477</span>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+
+  <div class="status">
+    <div class="stat" id="comply"><div class="k">配合度</div><div class="v"><span id="cv">100</span>%</div></div>
+    <div class="stat" id="queue"><div class="k">待審佇列</div><div class="v" id="qv">—</div></div>
+    <div class="stat"><div class="k">班次</div><div class="v">03&nbsp;/&nbsp;08</div></div>
+  </div>
+
+  <div class="stage" id="stage"></div>
+
+  <div class="log" id="log" aria-hidden="true"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var stage = document.getElementById('stage');
+  var logEl = document.getElementById('log');
+  var cv = document.getElementById('cv');
+  var complyBox = document.getElementById('comply');
+  var qv = document.getElementById('qv');
+  var queueBox = document.getElementById('queue');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var comply = 100, queue = 7;
+  qv.textContent = queue;
+
+  /* ---------- real clock ---------- */
+  function two(n){ return (n<10?'0':'')+n; }
+  function tick(){
+    var d=new Date();
+    document.getElementById('clock').textContent = two(d.getHours())+':'+two(d.getMinutes())+':'+two(d.getSeconds());
+  }
+  tick(); setInterval(tick,1000);
+
+  /* ---------- persistence: it remembers you ---------- */
+  var mem = {};
+  try{ mem = JSON.parse(localStorage.getItem('ncms_4477')||'{}'); }catch(e){}
+  var returning = !!mem.left;
+  function remember(){
+    try{
+      var d=new Date();
+      mem.left = two(d.getHours())+':'+two(d.getMinutes());
+      mem.visits = (mem.visits||0)+1;
+      localStorage.setItem('ncms_4477', JSON.stringify(mem));
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', remember);
+  document.addEventListener('visibilitychange', function(){ if(document.hidden) remember(); });
+
+  /* ---------- log ticker ---------- */
+  function log(txt, cls){
+    var l=document.createElement('div');
+    l.className='l'+(cls?' '+cls:'');
+    l.textContent=txt;
+    logEl.appendChild(l);
+    while(logEl.children.length>8) logEl.removeChild(logEl.firstChild);
+  }
+  log('// 連線已建立 · node-77');
+  log('// 載入操作員設定檔 #4477');
+
+  /* ---------- meters ---------- */
+  function setComply(n){
+    comply=Math.max(0,Math.min(100,n));
+    cv.textContent=comply;
+    complyBox.classList.toggle('low', comply<70);
+    complyBox.classList.toggle('crit', comply<40);
+  }
+  function setQueue(n, surge){
+    queue=n; qv.textContent=queue;
+    if(surge){ queueBox.classList.add('surge'); }
+  }
+
+  /* ---------- typing (with in-place skip) ---------- */
+  var skipFn=null;
+  function typeLines(lines, done){
+    var i=0, timer=null, span=null, car=null, curLine='', finished=false;
+    function finish(){ if(finished) return; finished=true; skipFn=null; if(done) done(); }
+    function startLine(){
+      if(i>=lines.length){ finish(); return; }
+      curLine=lines[i++];
+      var p=document.createElement('p'); p.className='sysline';
+      span=document.createElement('span'); p.appendChild(span);
+      car=document.createElement('span'); car.className='caret'; car.textContent='▊'; p.appendChild(car);
+      stage.appendChild(p);
+      if(reduce){ span.innerHTML=curLine; car.remove(); setTimeout(startLine,180); return; }
+      var j=0, plain=curLine.replace(/<[^>]+>/g,'');
+      timer=setInterval(function(){
+        j++; span.textContent=plain.slice(0,j);
+        if(j>=plain.length){ clearInterval(timer); timer=null; span.innerHTML=curLine; car.remove(); setTimeout(startLine,340); }
+      },22);
+    }
+    skipFn=function(){
+      if(finished) return;
+      if(timer){ clearInterval(timer); timer=null; }
+      if(span){ span.innerHTML=curLine; if(car) car.remove(); }
+      while(i<lines.length){ var p=document.createElement('p'); p.className='sysline'; p.innerHTML=lines[i++]; stage.appendChild(p); }
+      finish();
+    };
+    startLine();
+  }
+  // click empty space to skip typing; never let a button click trigger it
+  stage.addEventListener('click', function(e){
+    var onBtn = e.target && e.target.closest && e.target.closest('button');
+    if(skipFn && !onBtn) skipFn();
+  });
+
+  /* ---------- flow ---------- */
+  var idx=0, current=null;
+
+  function clearStage(){ stage.innerHTML=''; }
+
+  function sysStep(lines, btn, cb){
+    clearStage();
+    typeLines(lines, function(){
+      var b=document.createElement('button'); b.className='cont'; b.textContent=btn||'繼續';
+      b.onclick=function(){ if(cb) cb(); else next(); };
+      stage.appendChild(b);
+    });
+  }
+
+  function caseStep(c){
+    clearStage();
+    var wrap=document.createElement('div'); wrap.className='case';
+    wrap.innerHTML =
+      '<div class="meta"><span class="who">'+c.who+'</span>'+
+      (c.handle?'<span class="handle">'+c.handle+'</span>':'')+
+      '<span class="t">'+c.t+'</span></div>'+
+      '<div class="body" id="cbody">'+c.body+'</div>'+
+      '<span class="tag">'+c.tag+'</span>';
+    stage.appendChild(wrap);
+
+    var ctr=document.createElement('div'); ctr.className='controls';
+    var ok=document.createElement('button'); ok.className='act'; ok.textContent='核准';
+    var rm=document.createElement('button'); rm.className='act rm'; rm.textContent='移除';
+    ctr.appendChild(ok); ctr.appendChild(rm); stage.appendChild(ctr);
+
+    log('// 案件 '+c.id+' 已載入', 'sys');
+
+    // tab-away mutation
+    var mutated=false;
+    function maybeMutate(){
+      if(c.mutate && !mutated && document.hidden===false){
+        mutated=true;
+        var body=document.getElementById('cbody');
+        if(body){ body.innerHTML=c.mutate.to; if(!reduce){ var g=body.querySelector('.glitch'); if(g) g.classList.add('run'); } }
+        log(c.mutate.log||'// 內容已重新同步', 'warn');
+        if(c.mutate.comply!=null) setComply(comply+c.mutate.comply);
+      }
+    }
+    function onVis(){ if(!document.hidden) maybeMutate(); }
+    if(c.mutate) document.addEventListener('visibilitychange', onVis);
+
+    function decide(choice){
+      document.removeEventListener('visibilitychange', onVis);
+      ok.disabled=rm.disabled=true;
+      if(queue>0) setQueue(queue-1);
+      var res;
+      if(c.override){
+        var forced = choice==='ok' ? '移除' : '核准';
+        log('// 你的裁定：'+(choice==='ok'?'核准':'移除'), 'sys');
+        log('// 系統覆寫 → '+forced, 'bad');
+        setComply(comply-(c.override.comply||8));
+        res = choice==='ok' ? c.override.onOk : c.override.onRm;
+      } else {
+        log('// 裁定已記錄：'+(choice==='ok'?'核准':'移除'), 'sys');
+        if(c.comply!=null) setComply(comply+c.comply);
+        res = c.res;
+      }
+      showResponse(res);
+    }
+    ok.onclick=function(){ decide('ok'); };
+    rm.onclick=function(){ decide('rm'); };  }
+
+  function showResponse(lines){
+    if(!lines || !lines.length){ next(); return; }
+    // append system response beneath, then continue
+    var b=document.createElement('button'); b.className='cont'; b.textContent='下一件';
+    typeLines(lines, function(){ b.onclick=next; stage.appendChild(b); });
+  }
+
+  function lookAwayStep(step){
+    clearStage();
+    typeLines(step.lines, function(){
+      var hint=document.createElement('p'); hint.className='prompt-hint';
+      hint.textContent='（把視線移開螢幕，或切換到別的視窗……）';
+      stage.appendChild(hint);
+      var done=false;
+      function reveal(){
+        if(done) return; done=true;
+        document.removeEventListener('visibilitychange', onVis);
+        if(step.comply!=null) setComply(comply+step.comply);
+        if(step.queue!=null) setQueue(step.queue, true);
+        step.effect && step.effect();
+        clearStage();
+        typeLines(step.after, function(){
+          var b=document.createElement('button'); b.className='cont'; b.textContent='繼續'; b.onclick=next; stage.appendChild(b);
+        });
+      }
+      function onVis(){ if(!document.hidden) setTimeout(reveal, 400); }
+      document.addEventListener('visibilitychange', onVis);
+      // fallback: a button appears after a while for those who don't look away
+      setTimeout(function(){
+        if(done) return;
+        var b=document.createElement('button'); b.className='cont'; b.textContent='……我照做了'; b.onclick=reveal; stage.appendChild(b);
+      }, 5000);
+    });  }
+
+  function endStep(step){
+    clearStage();
+    var w=document.createElement('div'); w.className='case end';
+    stage.appendChild(w);
+    typeLines(step.lines, function(){
+      var sub=document.createElement('p'); sub.className='sub'; sub.textContent=step.sub; w.appendChild(sub);
+      var b=document.createElement('button'); b.className='cont'; b.textContent='登出';
+      b.onclick=function(){
+        b.disabled=true;
+        typeLines(['登出失敗。','你從未真正登入過。'], function(){
+          var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始';
+          r.onclick=function(){ location.reload(); };
+          stage.appendChild(r);
+        });
+      };
+      stage.appendChild(b);
+    });
+    log('// 班次未結束', 'bad');
+    log('// 佇列：'+queue+' 項待審', 'bad');  }
+
+  function next(){
+    if(idx>=steps.length) return;
+    current=steps[idx++];
+    var s=current;
+    if(s.type==='sys') sysStep(s.lines, s.btn, s.cb);
+    else if(s.type==='case') caseStep(s);
+    else if(s.type==='look') lookAwayStep(s);
+    else if(s.type==='end') endStep(s);
+  }
+
+  /* ---------- the script ---------- */
+  var steps = [
+    { type:'sys', lines:[
+      '夜間內容審核系統已就緒。',
+      returning
+        ? '歡迎回來，操作員 #4477。你上次在 '+(mem.left||'??:??')+' 離開。我們注意到了。'
+        : '操作員 #4477，晚安。現在輪到你的夜班。',
+      returning ? ('這是你第 '+(mem.visits||1)+' 次回來。你總是會回來。') : '螢幕右上角是現在的時間。是的，那是真的時間。'
+    ], btn:'開始值班'},
+
+    { type:'sys', lines:[
+      '你的職責很簡單：審核被標記的訊息。',
+      '無害的 → <b>核准</b>。有害的 → <b>移除</b>。',
+      '相信你的判斷。系統會在你身邊。',
+      '佇列裡有一些在等你了。'
+    ], btn:'載入第一件'},
+
+    { type:'case', id:'A-118', who:'林小姐', handle:'@min_ott', t:'03:11',
+      tag:'情緒 · 抱怨', body:'地鐵又誤點了，這禮拜第三次。這座城市到底還有沒有人在管事？',
+      res:['一則牢騷而已。','……大概吧。'] },
+
+    { type:'case', id:'A-119', who:'老陳', handle:'@chen_night', t:'03:14',
+      tag:'生活', body:'分享一個宵夜配方：泡麵加一顆蛋，關火前丟一把蔥。深夜的小小救贖。',
+      comply:2, res:['你笑了一下。','很久沒有東西能讓你笑了。'] },
+
+    { type:'sys', lines:['你的節奏很穩。','系統很滿意。'], btn:'繼續'},
+
+    { type:'case', id:'A-124', who:'匿名使用者', handle:'@anon', t:'03:19',
+      tag:'疑慮', body:'有人也覺得最近怪怪的嗎？我刪掉的貼文，隔天又自己回來了。',
+      comply:-3, res:['系統標記了這則。','「妄想傾向。」紀錄裡這樣寫。','你不記得自己寫過這行備註。'] },
+
+    { type:'case', id:'A-131', who:'流浪者', handle:'@wanderer', t:'03:24',
+      tag:'未分類',
+      body:'為什麼<span class="glitch">我</span>看到的，跟別人看到的不一樣？',
+      mutate:{ to:'為什麼<span class="glitch">你</span>看到的，跟別人看到的不一樣？', log:'// 主詞已重新同步', comply:-4 },
+      res:['……剛剛那句，是這樣寫的嗎？','紀錄顯示：是。'] },
+
+    { type:'sys', lines:[
+      '偵測到你的裁定出現輕微偏差。',
+      '別擔心，這很常見。','系統會協助你校正。'
+    ], btn:'下一件'},
+
+    { type:'case', id:'A-140', who:'陳先生', handle:'@mr_chen', t:'03:31',
+      tag:'查詢', body:'我只是想問——昨天那則新聞，為什麼不見了？',
+      override:{ comply:10,
+        onOk:['此內容已移除。','你的核准已被撤銷。','你太天真了。這裡不需要你的善意。'],
+        onRm:['此內容已核准。','你太謹慎了。','放輕鬆。有些事不該由你決定。'] } },
+
+    { type:'case', id:'A-???', who:'？？？', handle:'@you', t:'03:37',
+      tag:'無法歸類', body:'#4477，是你嗎？我在螢幕的另一邊。他們也讓你看這些東西嗎？',
+      comply:-6, res:['你的手指停在按鍵上。','你沒有按。','但佇列還是少了一件。'] },
+
+    { type:'look',
+      lines:['系統需要重新校準你的視覺基準。','請將視線離開螢幕，維持三秒。','這是為了你好。'],
+      comply:-12, queue:14,
+      after:['謝謝配合。','趁你不看的時候，有些東西已經調整好了。','（配合度下降了。佇列變長了。你沒看到那一刻。）'] },
+
+    { type:'case', id:'INT-01', who:'操作員 #4477', handle:'（你）', t:'02:58',
+      tag:'內部紀錄',
+      body:'如果有一天，我發現自己也在被審核，我會怎麼做？',
+      comply:-8, res:['這則的作者是你。','時間戳是今晚 02:58。','你不記得寫過這句話。','但紀錄，永遠不會錯。'] },
+
+    { type:'sys', lines:[
+      '本班次的審核對象已更新。',
+      '當前對象：<b>操作員 #4477</b>。',
+      '請繼續。你做得很好。','你一直都很配合。'
+    ], btn:'……', cb:function(){ setQueue(31,true); next(); } },
+
+    { type:'case', id:'SYS-4477', who:'系統', handle:'@ncms', t:'03:41',
+      tag:'需要裁定',
+      body:'操作員 #4477 · 存取權限：正常 · 情緒穩定度：<span class="glitch">下降中</span>。是否核准對此操作員的持續監控？',
+      override:null, comply:0,
+      res:null
+    },
+
+    { type:'end',
+      lines:['夜還很長，操作員。','佇列永遠不會清空。','我們，明天同一時間見。'],
+      sub:'關掉這個分頁吧。反正它記得你什麼時候離開。' }
+  ];
+
+  // give the final case bespoke responses (depends on choice)
+  var finalCase = steps[13];
+  finalCase.override = { comply:0,
+    onOk:['感謝配合。','監控將持續。','你一直都懂事。'],
+    onRm:['移除請求已記錄。','已忽略。','你沒有移除自己的權限。','沒有人有。'] };
+
+  next();
+})();
+</script>
+</body>
+</html>
