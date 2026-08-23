@@ -83,6 +83,12 @@
   .bar .sys{ color:var(--phos); }
   .bar .spacer{ flex:1; }
   .clock{ font-variant-numeric:tabular-nums; color:var(--text); }
+  .bar button.mute{
+    background:transparent; border:none; cursor:pointer; font:inherit; font-size:14px;
+    line-height:1; padding:0; margin-left:2px; opacity:.75; transition:opacity .16s, transform .16s;
+  }
+  .bar button.mute:hover{ opacity:1; transform:scale(1.1); }
+  .bar button.mute:focus-visible{ outline:2px solid var(--phos); outline-offset:2px; }
 
   /* ---- status strip ---- */
   .status{
@@ -196,6 +202,7 @@
     <span class="spacer"></span>
     <span>操作員&nbsp;#4477</span>
     <span class="clock" id="clock">--:--:--</span>
+    <button class="mute" id="mute" type="button" aria-label="聲音開關" title="聲音開關">🔊</button>
   </div>
 
   <div class="status">
@@ -268,6 +275,59 @@
     queue=n; qv.textContent=queue;
     if(surge){ queueBox.classList.add('surge'); }
   }
+
+  /* ---------- audio (Web Audio, no assets) ---------- */
+  var AC=null, master=null, audioReady=false, muted=false;
+  function initAudio(){
+    if(audioReady || muted) return;
+    try{
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      master = AC.createGain(); master.gain.value=0.0001; master.connect(AC.destination);
+      startAmbient();
+      master.gain.setTargetAtTime(1.0, AC.currentTime, 1.8); // slow fade-in
+      audioReady=true;
+    }catch(e){ AC=null; }
+  }
+  function startAmbient(){
+    if(!AC) return;
+    // low detuned drone through a slowly wandering lowpass
+    var bed=AC.createGain(); bed.gain.value=0.05; bed.connect(master);
+    var lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=300; lp.Q.value=5; lp.connect(bed);
+    var o1=AC.createOscillator(); o1.type='sawtooth'; o1.frequency.value=55;
+    var o2=AC.createOscillator(); o2.type='sawtooth'; o2.frequency.value=55.5;
+    o1.connect(lp); o2.connect(lp); o1.start(); o2.start();
+    var lfo=AC.createOscillator(); lfo.frequency.value=0.06;
+    var lfoG=AC.createGain(); lfoG.gain.value=130; lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
+    // faint filtered hiss
+    var buf=AC.createBuffer(1, AC.sampleRate*2, AC.sampleRate);
+    var d=buf.getChannelData(0); for(var i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+    var noise=AC.createBufferSource(); noise.buffer=buf; noise.loop=true;
+    var nbp=AC.createBiquadFilter(); nbp.type='bandpass'; nbp.frequency.value=1100; nbp.Q.value=0.6;
+    var ng=AC.createGain(); ng.gain.value=0.010;
+    noise.connect(nbp); nbp.connect(ng); ng.connect(master); noise.start();
+  }
+  function blip(freq, dur, type, vol){
+    if(!AC || muted) return;
+    var t=AC.currentTime;
+    var o=AC.createOscillator(); o.type=type||'square'; o.frequency.value=freq;
+    var g=AC.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.12, t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+(dur||0.08));
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+(dur||0.08)+0.03);
+  }
+  function sfxClick(){ blip(620,0.05,'square',0.06); }
+  function sfxThunk(){ blip(84,0.26,'sawtooth',0.16); }
+  function sfxSting(){ blip(150,0.5,'sawtooth',0.10); setTimeout(function(){ blip(68,0.8,'sawtooth',0.12); },70); }
+  function toggleMute(){
+    muted=!muted;
+    document.getElementById('mute').textContent = muted ? '🔇' : '🔊';
+    if(!muted && !audioReady){ initAudio(); return; }
+    if(master) master.gain.setTargetAtTime(muted?0.0001:1.0, AC.currentTime, 0.25);
+  }
+  document.getElementById('mute').addEventListener('click', function(e){ e.stopPropagation(); toggleMute(); });
+  // browsers require a user gesture before audio can start
+  document.addEventListener('click', initAudio, { once:true });
 
   /* ---------- typing (with in-place skip) ---------- */
   var skipFn=null;
@@ -359,8 +419,10 @@
         log('// 你的裁定：'+(choice==='ok'?'核准':'移除'), 'sys');
         log('// 系統覆寫 → '+forced, 'bad');
         setComply(comply-(c.override.comply||8));
+        sfxClick(); setTimeout(sfxThunk, 220);
         res = choice==='ok' ? c.override.onOk : c.override.onRm;
       } else {
+        sfxClick();
         log('// 裁定已記錄：'+(choice==='ok'?'核准':'移除'), 'sys');
         if(c.comply!=null) setComply(comply+c.comply);
         res = c.res;
@@ -387,6 +449,7 @@
       function reveal(){
         if(done) return; done=true;
         document.removeEventListener('visibilitychange', onVis);
+        sfxSting();
         if(step.comply!=null) setComply(comply+step.comply);
         if(step.queue!=null) setQueue(step.queue, true);
         step.effect && step.effect();
@@ -413,6 +476,7 @@
       var b=document.createElement('button'); b.className='cont'; b.textContent='登出';
       b.onclick=function(){
         b.disabled=true;
+        sfxSting();
         typeLines(['登出失敗。','你從未真正登入過。'], function(){
           var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始';
           r.onclick=function(){ location.reload(); };
