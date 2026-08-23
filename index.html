@@ -164,9 +164,9 @@
   /* ---- log ---- */
   .log{
     border:1px solid var(--border); border-top:none;
-    background:#0a1013; padding:10px 14px;
-    font-size:11.5px; color:var(--faint); line-height:1.7;
-    height:96px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end;
+    background:#0a1013; padding:12px 14px;
+    font-size:11.5px; color:var(--faint); line-height:1.5;
+    height:96px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:6px;
   }
   .log .l{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .log .l.warn{ color:var(--warn); }
@@ -252,7 +252,7 @@
     l.className='l'+(cls?' '+cls:'');
     l.textContent=txt;
     logEl.appendChild(l);
-    while(logEl.children.length>8) logEl.removeChild(logEl.firstChild);
+    while(logEl.children.length>4) logEl.removeChild(logEl.firstChild);
   }
   log('// 連線已建立 · node-77');
   log('// 載入操作員設定檔 #4477');
@@ -444,7 +444,11 @@
       returning ? ('這是你第 '+(mem.visits||1)+' 次回來。你總是會回來。') : '螢幕右上角是現在的時間。是的，那是真的時間。'
     ], btn:'開始值班'},
 
-    { type:'sys', lines:[
+    { type:'sys', lines: returning ? [
+      '規則你已經很熟了。我們就不重複了。',
+      '你每次都回來。每次都坐上這個位子。',
+      '這次佇列裡有些東西……是特地為你留的。'
+    ] : [
       '你的職責很簡單：審核被標記的訊息。',
       '無害的 → <b>核准</b>。有害的 → <b>移除</b>。',
       '相信你的判斷。系統會在你身邊。',
@@ -496,7 +500,11 @@
       body:'如果有一天，我發現自己也在被審核，我會怎麼做？',
       comply:-8, res:['這則的作者是你。','時間戳是今晚 02:58。','你不記得寫過這句話。','但紀錄，永遠不會錯。'] },
 
-    { type:'sys', lines:[
+    { type:'sys', lines: returning ? [
+      '本班次的審核對象已更新。',
+      '當前對象：<b>操作員 #4477</b>。',
+      '你每一次回來，都會走到這一步。','而你每一次，都選一樣的。'
+    ] : [
       '本班次的審核對象已更新。',
       '當前對象：<b>操作員 #4477</b>。',
       '請繼續。你做得很好。','你一直都很配合。'
@@ -510,8 +518,12 @@
     },
 
     { type:'end',
-      lines:['夜還很長，操作員。','佇列永遠不會清空。','我們，明天同一時間見。'],
-      sub:'關掉這個分頁吧。反正它記得你什麼時候離開。' }
+      lines: returning
+        ? ['夜還很長，操作員。','你已經知道這句話了。','我們，明天同一時間見。']
+        : ['夜還很長，操作員。','佇列永遠不會清空。','我們，明天同一時間見。'],
+      sub: returning
+        ? ('你上次也是這樣關掉的。這是第 '+(mem.visits||1)+' 次了。')
+        : '關掉這個分頁吧。反正它記得你什麼時候離開。' }
   ];
 
   // give the final case bespoke responses (depends on choice)
