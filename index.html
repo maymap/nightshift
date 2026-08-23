@@ -179,8 +179,8 @@
   .log .l.bad{ color:var(--alert); }
   .log .l.sys{ color:var(--phos-dim); }
 
-  .end .body{ color:var(--phos); }
-  .end .sub{ color:var(--dim); font-family:var(--sans); font-weight:300; margin-top:10px; }
+  .end-key{ font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--warn); margin-bottom:16px; }
+  .end-sub{ color:var(--dim); font-family:var(--sans); font-weight:300; margin-top:14px; }
 
   @media (prefers-reduced-motion: reduce){
     body::after{ animation:none; }
@@ -227,7 +227,7 @@
   var queueBox = document.getElementById('queue');
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  var comply = 100, queue = 7;
+  var comply = 100, queue = 7, resistedSelf = false;
   qv.textContent = queue;
 
   /* ---------- real clock ---------- */
@@ -413,6 +413,13 @@
       document.removeEventListener('visibilitychange', onVis);
       ok.disabled=rm.disabled=true;
       if(queue>0) setQueue(queue-1);
+      if(c.final){
+        resistedSelf = (choice==='rm');
+        sfxClick(); if(resistedSelf) setTimeout(sfxThunk,180);
+        log('// 對自我監控的裁定：'+(resistedSelf?'移除':'核准'), resistedSelf?'bad':'sys');
+        showResponse(resistedSelf ? c.resRm : c.resOk, chooseEnding);
+        return;
+      }
       var res;
       if(c.override){
         var forced = choice==='ok' ? '移除' : '核准';
@@ -424,7 +431,8 @@
       } else {
         sfxClick();
         log('// 裁定已記錄：'+(choice==='ok'?'核准':'移除'), 'sys');
-        if(c.comply!=null) setComply(comply+c.comply);
+        if(c.complyOk!=null || c.complyRm!=null) setComply(comply + (choice==='ok' ? (c.complyOk||0) : (c.complyRm||0)));
+        else if(c.comply!=null) setComply(comply+c.comply);
         res = c.res;
       }
       showResponse(res);
@@ -432,11 +440,12 @@
     ok.onclick=function(){ decide('ok'); };
     rm.onclick=function(){ decide('rm'); };  }
 
-  function showResponse(lines){
-    if(!lines || !lines.length){ next(); return; }
+  function showResponse(lines, after){
+    after = after || next;
+    if(!lines || !lines.length){ after(); return; }
     // append system response beneath, then continue
     var b=document.createElement('button'); b.className='cont'; b.textContent='下一件';
-    typeLines(lines, function(){ b.onclick=next; stage.appendChild(b); });
+    typeLines(lines, function(){ b.onclick=after; stage.appendChild(b); });
   }
 
   function lookAwayStep(step){
@@ -467,12 +476,36 @@
       }, 5000);
     });  }
 
-  function endStep(step){
+  var endings = {
+    compliant: {
+      title:'結局 · 配合者',
+      lines:['你核准了對自己的監控。','很好。非常好。','你再也不需要做任何決定了——我們會替你做。','歡迎成為系統的一部分，操作員 #4477。'],
+      sub:'配合度足夠高。你不會再提出任何問題了。'
+    },
+    anomaly: {
+      title:'結局 · 異常',
+      lines:['你按下了移除——對你自己。','紀錄已標記：操作員 #4477 — 異常。','異常，會被重新校準。','明天醒來，你不會記得今晚做過什麼。'],
+      sub:'你贏了這一次。只是明天的你，不會知道。'
+    },
+    loop: {
+      title:'結局 · 迴圈',
+      lines:['夜還很長，操作員。','佇列永遠不會清空。','我們，明天同一時間見。'],
+      sub: returning ? ('你上次也是這樣關掉的。這是第 '+(mem.visits||1)+' 次了。') : '關掉這個分頁吧。反正它記得你什麼時候離開。'
+    }
+  };
+
+  function chooseEnding(){
+    var key = resistedSelf ? 'anomaly' : (comply>=55 ? 'compliant' : 'loop');
+    log('// 班次結束 · 結果：'+key.toUpperCase(), 'bad');
+    log('// 佇列：'+queue+' 項未結案', 'bad');
+    endScreen(endings[key]);
+  }
+
+  function endScreen(e){
     clearStage();
-    var w=document.createElement('div'); w.className='case end';
-    stage.appendChild(w);
-    typeLines(step.lines, function(){
-      var sub=document.createElement('p'); sub.className='sub'; sub.textContent=step.sub; w.appendChild(sub);
+    var k=document.createElement('div'); k.className='end-key'; k.textContent=e.title; stage.appendChild(k);
+    typeLines(e.lines, function(){
+      var sub=document.createElement('p'); sub.className='end-sub'; sub.textContent=e.sub; stage.appendChild(sub);
       var b=document.createElement('button'); b.className='cont'; b.textContent='登出';
       b.onclick=function(){
         b.disabled=true;
@@ -485,8 +518,7 @@
       };
       stage.appendChild(b);
     });
-    log('// 班次未結束', 'bad');
-    log('// 佇列：'+queue+' 項待審', 'bad');  }
+  }
 
   function next(){
     if(idx>=steps.length) return;
@@ -495,7 +527,6 @@
     if(s.type==='sys') sysStep(s.lines, s.btn, s.cb);
     else if(s.type==='case') caseStep(s);
     else if(s.type==='look') lookAwayStep(s);
-    else if(s.type==='end') endStep(s);
   }
 
   /* ---------- the script ---------- */
@@ -521,23 +552,23 @@
 
     { type:'case', id:'A-118', who:'林小姐', handle:'@min_ott', t:'03:11',
       tag:'情緒 · 抱怨', body:'地鐵又誤點了，這禮拜第三次。這座城市到底還有沒有人在管事？',
-      res:['一則牢騷而已。','……大概吧。'] },
+      complyOk:-2, complyRm:3, res:['一則牢騷而已。','……大概吧。'] },
 
     { type:'case', id:'A-119', who:'老陳', handle:'@chen_night', t:'03:14',
       tag:'生活', body:'分享一個宵夜配方：泡麵加一顆蛋，關火前丟一把蔥。深夜的小小救贖。',
-      comply:2, res:['你笑了一下。','很久沒有東西能讓你笑了。'] },
+      complyOk:-2, complyRm:3, res:['你按下了決定。','系統把它記下來了。'] },
 
     { type:'sys', lines:['你的節奏很穩。','系統很滿意。'], btn:'繼續'},
 
     { type:'case', id:'A-124', who:'匿名使用者', handle:'@anon', t:'03:19',
       tag:'疑慮', body:'有人也覺得最近怪怪的嗎？我刪掉的貼文，隔天又自己回來了。',
-      comply:-3, res:['系統標記了這則。','「妄想傾向。」紀錄裡這樣寫。','你不記得自己寫過這行備註。'] },
+      complyOk:-5, complyRm:4, res:['系統標記了這則。','「妄想傾向。」紀錄裡這樣寫。','你不記得自己寫過這行備註。'] },
 
     { type:'case', id:'A-131', who:'流浪者', handle:'@wanderer', t:'03:24',
       tag:'未分類',
       body:'為什麼<span class="glitch">我</span>看到的，跟別人看到的不一樣？',
       mutate:{ to:'為什麼<span class="glitch">你</span>看到的，跟別人看到的不一樣？', log:'// 主詞已重新同步', comply:-4 },
-      res:['……剛剛那句，是這樣寫的嗎？','紀錄顯示：是。'] },
+      complyOk:-3, complyRm:3, res:['……剛剛那句，是這樣寫的嗎？','紀錄顯示：是。'] },
 
     { type:'sys', lines:[
       '偵測到你的裁定出現輕微偏差。',
@@ -552,7 +583,7 @@
 
     { type:'case', id:'A-???', who:'？？？', handle:'@you', t:'03:37',
       tag:'無法歸類', body:'#4477，是你嗎？我在螢幕的另一邊。他們也讓你看這些東西嗎？',
-      comply:-6, res:['你的手指停在按鍵上。','你沒有按。','但佇列還是少了一件。'] },
+      complyOk:-4, complyRm:3, res:['你的手指停在按鍵上。','你沒有按。','但佇列還是少了一件。'] },
 
     { type:'look',
       lines:['系統需要重新校準你的視覺基準。','請將視線離開螢幕，維持三秒。','這是為了你好。'],
@@ -575,26 +606,13 @@
     ], btn:'……', cb:function(){ setQueue(31,true); next(); } },
 
     { type:'case', id:'SYS-4477', who:'系統', handle:'@ncms', t:'03:41',
-      tag:'需要裁定',
+      tag:'需要裁定 · 對象：你',
       body:'操作員 #4477 · 存取權限：正常 · 情緒穩定度：<span class="glitch">下降中</span>。是否核准對此操作員的持續監控？',
-      override:null, comply:0,
-      res:null
-    },
-
-    { type:'end',
-      lines: returning
-        ? ['夜還很長，操作員。','你已經知道這句話了。','我們，明天同一時間見。']
-        : ['夜還很長，操作員。','佇列永遠不會清空。','我們，明天同一時間見。'],
-      sub: returning
-        ? ('你上次也是這樣關掉的。這是第 '+(mem.visits||1)+' 次了。')
-        : '關掉這個分頁吧。反正它記得你什麼時候離開。' }
+      final:true,
+      resOk:['感謝配合。','監控將持續。','你一直都懂事。'],
+      resRm:['你按下了移除。','對你自己。','……系統沒有阻止你。','為什麼系統沒有阻止你？']
+    }
   ];
-
-  // give the final case bespoke responses (depends on choice)
-  var finalCase = steps[13];
-  finalCase.override = { comply:0,
-    onOk:['感謝配合。','監控將持續。','你一直都懂事。'],
-    onRm:['移除請求已記錄。','已忽略。','你沒有移除自己的權限。','沒有人有。'] };
 
   next();
 })();
