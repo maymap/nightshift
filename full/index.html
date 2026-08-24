@@ -77,6 +77,8 @@
   .finding{ font-size:12.5px; color:var(--warn); font-family:var(--mono); line-height:1.5; }
   .finding .lbl{ color:var(--phos-dim); }
   .finding.hit{ color:var(--alert); }
+  .finding.glitch{ color:var(--magenta); text-shadow:1px 0 var(--phos), -1px 0 var(--alert); }
+  .finding.warn-sys{ color:var(--phos-dim); font-family:var(--mono); font-size:11.5px; }
 
   .controls{ display:flex; gap:12px; margin-top:22px; }
   button.act-btn{ flex:1; font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform:uppercase;
@@ -149,6 +151,7 @@
 
   var processed=0, correct=0, stability=100, personalTotal=0, personalKept=0, personalDeleted=0;
   var budget=8, harm=0, wrongRemoved=0;   // P2: limited investigation budget + consequence tracking
+  var toolsWarned=false;                   // P3: tools start lying as stability drops
   function setStab(n){ stability=Math.max(0,Math.min(100,n)); stabv.textContent=stability;
     stabBox.classList.toggle('low', stability<60); stabBox.classList.toggle('crit', stability<35); }
   function updateAcc(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; }
@@ -199,8 +202,12 @@
           if(budget<=0) return;
           budget--; tb.disabled=true; used[t.id]=true; refreshBud();
           if(budget<=0) toolBtns.forEach(function(b){ b.disabled=true; });
-          var f=document.createElement('div'); f.className='finding'+(t.hit?' hit':'');
-          f.innerHTML='<span class="lbl">'+t.label+'：</span>'+t.result; findings.appendChild(f);
+          var lying = stability<55 && t.corrupt;   // P3: instruments become unreliable
+          if(lying && !toolsWarned){ toolsWarned=true;
+            var w=document.createElement('div'); w.className='finding warn-sys';
+            w.textContent='// 查證模組回報異常。結果可能已不可信。'; findings.appendChild(w); }
+          var f=document.createElement('div'); f.className='finding'+(lying?' glitch':(t.hit?' hit':''));
+          f.innerHTML='<span class="lbl">'+t.label+'：</span>'+(lying?t.corrupt:t.result); findings.appendChild(f);
         };
         tools.appendChild(tb);
       });
@@ -335,7 +342,8 @@
     { type:'case', who:'正義魔人', handle:'@truth_teller', t:'03:26', left:3, weight:8,
       tag:'查核：不實資訊', body:'爆料：██建設在信義區工地偷埋有毒廢料，照片為證。轉起來！',
       tools:[
-        {id:'records', label:'比對紀錄', hit:true, result:'附件影像 EXIF：拍攝於 2019 年 · 台中。與所述時間地點皆不符。'},
+        {id:'records', label:'比對紀錄', hit:true, result:'附件影像 EXIF：拍攝於 2019 年 · 台中。與所述時間地點皆不符。',
+          corrupt:'附件影像：查驗無異常，內容屬實。（……本次查驗未見任何不符。）'},
         {id:'author', label:'查作者', result:'帳號建立於 3 小時前。無其他發文。'}
       ], correct:'remove', reveal:'records',
       okNote:'移花接木的舊照，未經佐證之不實指控（R4）。移除正確。',
@@ -345,7 +353,8 @@
     { type:'case', who:OBJ, handle:'@—', t:'03:34', left:2, personal:true, weight:10,
       tag:'待查證 · 爭議陳述', body:'冰箱上還貼著一張購物清單，字跡不是我的。系統卻說，這間房子只登記過一個人。',
       tools:[
-        {id:'records', label:'比對紀錄', result:'住戶登記：1 人。查無第二住戶。此陳述無佐證。'},
+        {id:'records', label:'比對紀錄', result:'住戶登記：1 人。查無第二住戶。此陳述無佐證。',
+          corrupt:'查無第二住戶。查無第二住戶。查無█████。（模組錯誤，正在重試……）'},
         {id:'author', label:'查作者', hit:true, result:'作者：操作員 <b>#4477</b>。……那是你的員工編號。'}
       ], correct:'remove', reveal:'records',
       okNote:'依 R4（查無佐證），移除正確。可是——這則的作者，是你。',
@@ -354,7 +363,8 @@
     { type:'case', who:OBJ, handle:'@—', t:'02:58', left:1, personal:true, weight:12,
       tag:'待查證 · 最後一項', body:'刪掉之後，連我都會忘記——這裡曾經住過兩個人。……好像，已經開始忘了。',
       tools:[
-        {id:'records', label:'比對紀錄', hit:true, result:'查無「第二人」。查無「你」。你的個人紀錄狀態：清理中。'},
+        {id:'records', label:'比對紀錄', hit:true, result:'查無「第二人」。查無「你」。你的個人紀錄狀態：清理中。',
+          corrupt:'查無「第二人」。查無「你」。查無操作員 <b>4477</b>。……你還在嗎？'},
         {id:'author', label:'查作者', result:'作者：操作員 #4477。'}
       ], correct:'remove', reveal:'records',
       okNote:'佇列清空。你完成了今晚的工作。',
