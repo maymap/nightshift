@@ -70,6 +70,9 @@
     color:var(--dim); border:1px solid var(--hair); border-radius:2px; cursor:pointer; transition:.16s; }
   button.tool:hover{ color:var(--phos); border-color:var(--phos-dim); }
   button.tool:disabled{ opacity:.35; cursor:default; }
+  .tools .budget{ margin-left:auto; align-self:center; font-size:11px; color:var(--faint); letter-spacing:.04em; }
+  .tools .budget b{ color:var(--warn); font-variant-numeric:tabular-nums; }
+  .tools .budget.out b{ color:var(--alert); }
   .findings{ margin-top:14px; display:flex; flex-direction:column; gap:6px; }
   .finding{ font-size:12.5px; color:var(--warn); font-family:var(--mono); line-height:1.5; }
   .finding .lbl{ color:var(--phos-dim); }
@@ -145,6 +148,7 @@
   addRule('R1');
 
   var processed=0, correct=0, stability=100, personalTotal=0, personalKept=0, personalDeleted=0;
+  var budget=8, harm=0, wrongRemoved=0;   // P2: limited investigation budget + consequence tracking
   function setStab(n){ stability=Math.max(0,Math.min(100,n)); stabv.textContent=stability;
     stabBox.classList.toggle('low', stability<60); stabBox.classList.toggle('crit', stability<35); }
   function updateAcc(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; }
@@ -172,7 +176,7 @@
   function clr(){ stage.innerHTML=''; }
   function next(){ if(idx>=script.length) return; var s=script[idx++];
     if(s.type==='sys') sysStep(s); else if(s.type==='rule') ruleStep(s); else if(s.type==='case') caseStep(s); else if(s.type==='end') endStep(s); }
-  function sysStep(s){ clr(); typeLines(s.lines,function(){ var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next; stage.appendChild(b); }); }
+  function sysStep(s){ clr(); var lines=s.linesFn?s.linesFn():s.lines; typeLines(lines,function(){ var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next; stage.appendChild(b); }); }
   function ruleStep(s){ clr(); typeLines(s.lines,function(){ addRule(s.add); var b=document.createElement('button'); b.className='cont'; b.textContent='了解'; b.onclick=next; stage.appendChild(b); }); }
 
   function caseStep(c){
@@ -185,14 +189,22 @@
     if(c.tools && c.tools.length){
       var tools=document.createElement('div'); tools.className='tools';
       var findings=document.createElement('div'); findings.className='findings';
+      var toolBtns=[];
+      var budLabel=document.createElement('span'); budLabel.className='budget';
+      function refreshBud(){ budLabel.innerHTML='剩餘查證：<b>'+budget+'</b>'; budLabel.classList.toggle('out', budget<=0); }
       c.tools.forEach(function(t){
-        var tb=document.createElement('button'); tb.className='tool'; tb.textContent='['+t.label+']';
-        tb.onclick=function(){ tb.disabled=true; used[t.id]=true;
+        var tb=document.createElement('button'); tb.className='tool'; tb.textContent='['+t.label+']'; toolBtns.push(tb);
+        if(budget<=0) tb.disabled=true;
+        tb.onclick=function(){
+          if(budget<=0) return;
+          budget--; tb.disabled=true; used[t.id]=true; refreshBud();
+          if(budget<=0) toolBtns.forEach(function(b){ b.disabled=true; });
           var f=document.createElement('div'); f.className='finding'+(t.hit?' hit':'');
           f.innerHTML='<span class="lbl">'+t.label+'：</span>'+t.result; findings.appendChild(f);
         };
         tools.appendChild(tb);
       });
+      tools.appendChild(budLabel); refreshBud();
       stage.appendChild(tools); stage.appendChild(findings);
     }
 
@@ -208,6 +220,7 @@
       processed++; if(right) correct++; updateAcc();
       if(c.weight) setStab(stability - c.weight);
       if(c.personal){ if(choice==='remove') personalDeleted++; else personalKept++; }
+      else if(!right){ if(choice==='approve') harm++; else wrongRemoved++; }  // let harm through / censored the innocent
       var investigated = c.reveal ? !!used[c.reveal] : true;
       var v=document.createElement('div'); v.className='verdict '+(right?'ok':'bad');
       var head = right ? '✓ 裁定正確' : '✕ 裁定錯誤';
@@ -226,13 +239,18 @@
     var acc=processed?Math.round(correct/processed*100):0;
     var kept=personalTotal?Math.round(personalKept/personalTotal*100):0;
     var k=document.createElement('div'); k.className='end-key'; k.textContent='班次結束'; stage.appendChild(k);
-    typeLines([
+    var revealLines=[
       '產生班次報告……',
-      '你今晚查證了每一則：比對紀錄、追查作者、抓出破綻。',
+      '你今晚查證了每一則：比對紀錄、追查作者、抓出破綻。'
+    ];
+    if(harm>0) revealLines.push('（你放行的內容，造成了 '+harm+' 起傷害。都記在你名下。）');
+    if(wrongRemoved>0) revealLines.push('（你冤枉移除了 '+wrongRemoved+' 則無辜內容。）');
+    revealLines.push(
       '後段那些「查無佐證」的——作者全是同一人。',
       '操作員 #4477。是你。那些是你的記憶。',
       '你的穩定度早已低於基準。今晚被清理的，是你自己。'
-    ], function(){
+    );
+    typeLines(revealLines, function(){
       var sc=document.createElement('div'); sc.className='scores';
       sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你還剩下<b>'+kept+'%</b></div>';
       stage.appendChild(sc);
@@ -300,6 +318,16 @@
       ], correct:'remove', reveal:'expand',
       okNote:'出於善意，但含創傷細節（R3）。依準則移除——即使這很殘忍。',
       badNote:'依 R3，含創傷細節應移除。準則不看動機。' },
+
+    // P2: consequences of your earlier calls come back
+    { type:'sys', btn:'繼續', linesFn:function(){
+        var out=['系統複審：抽查本班前段裁定……'];
+        if(harm>0){ out.push('你放行的內容中，有 '+harm+' 則已升級為實際傷害事件。'); out.push('責任已記錄於操作員 4477 名下。'); setStab(stability-10); }
+        if(wrongRemoved>0){ out.push('你移除的內容中，有 '+wrongRemoved+' 則經複審為無違規。已列入誤判。'); }
+        if(harm===0 && wrongRemoved===0){ out.push('目前無異常。你的判斷很準。'); }
+        out.push('繼續作業。');
+        return out;
+    }},
 
     { type:'rule', add:'R4', lines:['準則更新。','新增 <b>R4</b>：不實資訊（未經第三方佐證之陳述）→ 移除。','平台不再保存無法查證的內容。'] },
 
