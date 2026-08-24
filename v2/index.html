@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>深夜審核台 · v2</title>
-<meta name="description" content="判斷迴圈 × 慢燃揭露：你審核的殘留資料，是你自己。">
+<meta name="description" content="一份普通的夜班內容審核工作。">
 <meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,7 +62,6 @@
   .case .meta .t{ margin-left:auto; font-variant-numeric:tabular-nums; }
   .case .body{ font-family:var(--sans); font-weight:300; font-size:18px; line-height:1.65; color:#dbe6e2; margin:16px 0 4px; text-wrap:pretty; }
   .redact{ background:#2a3338; color:transparent; border-radius:1px; padding:0 .15em; user-select:none; }
-  .obj{ color:var(--phos-dim); }
 
   .controls{ display:flex; gap:12px; margin-top:26px; }
   button.act-btn{ flex:1; font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform:uppercase;
@@ -94,11 +93,11 @@
 </head>
 <body>
 <div class="machine" role="application" aria-label="深夜審核台 v2">
-  <div class="bar"><span class="dot"></span><span class="sys">NCMS</span><span>殘留資料清理</span>
+  <div class="bar"><span class="dot"></span><span class="sys">NCMS</span><span>夜間內容審核</span>
     <span class="spacer"></span><span>操作員&nbsp;#4477</span><span class="clock" id="clock">--:--:--</span></div>
   <div class="status">
     <div class="stat" id="acc"><div class="k">正確率</div><div class="v"><span id="accv">—</span></div></div>
-    <div class="stat"><div class="k">待清理</div><div class="v" id="queuev">—</div></div>
+    <div class="stat"><div class="k">待審</div><div class="v" id="queuev">—</div></div>
     <div class="stat" id="strk"><div class="k">誤判</div><div class="v"><span id="strkv">0</span></div></div>
   </div>
   <div class="rules"><h4>現行審核準則</h4><ul id="rulelist"></ul></div>
@@ -116,7 +115,11 @@
   function tick(){var d=new Date();document.getElementById('clock').textContent=two(d.getHours())+':'+two(d.getMinutes())+':'+two(d.getSeconds());}
   tick(); setInterval(tick,1000);
 
-  var RULES={ R1:{label:'含個人資訊（地址・電話・真實姓名）'}, R2:{label:'與對象 <span class="redact">████</span> 相關之殘留資料'} };
+  // Mundane-looking content policy. R2 quietly scrubs nostalgia/grief — reads as a cold platform rule, not "about a person".
+  var RULES={
+    R1:{label:'含個人資訊（地址・電話・真實姓名）'},
+    R2:{label:'情緒不穩定內容（懷舊・哀傷・過度依戀）'}
+  };
   var active=[];
   function renderRules(freshId){
     ruleList.innerHTML='';
@@ -132,7 +135,7 @@
   function addRule(id){ if(active.indexOf(id)<0) active.push(id); renderRules(id); }
   addRule('R1'); addRule('R2');
 
-  /* stats — visible: accuracy/misjudge. hidden: how much of yourself you kept. */
+  /* visible: accuracy/misjudge (the job). hidden: how much of yourself survived — revealed only at the very end. */
   var processed=0, correct=0, wrong=0;
   var personalTotal=0, personalKept=0, personalDeleted=0;
   function updateStats(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; strkv.textContent=wrong; strkBox.classList.toggle('warn',wrong>=3); }
@@ -196,19 +199,23 @@
     clr();
     var acc=processed?Math.round(correct/processed*100):0;
     var clarity=personalTotal?Math.round(personalKept/personalTotal*100):0;
-    var k=document.createElement('div'); k.className='end-key'; k.textContent='清理完成'; stage.appendChild(k);
+    var k=document.createElement('div'); k.className='end-key'; k.textContent='班次結束'; stage.appendChild(k);
+    // the reveal — withheld until now
     typeLines([
-      '本班對象：<b>操作員 #4477</b>。',
-      '那些殘留資料——是你的記憶。',
-      '那個被標記為「待清理」的人，是你自己。'
+      '正在產生班次報告……',
+      '比對作者身分……',
+      '本班你審核的內容，作者全部相同。',
+      '作者：<b>操作員 #4477</b>。',
+      '那些不是別人的貼文。是你的記憶。',
+      '你今晚的工作，是刪掉你自己。'
     ], function(){
       var sc=document.createElement('div'); sc.className='scores';
-      sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">身分還原度<b>'+clarity+'%</b></div>';
+      sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你還剩下<b>'+clarity+'%</b></div>';
       stage.appendChild(sc);
       var lines2, sub;
-      if(clarity===0){ lines2=['你刪得又快又準。','你不記得你曾經是誰。']; sub='系統得到一名乾淨、穩定、再也不會悲傷的操作員。'; }
-      else if(clarity<60){ lines2=['你留下了幾塊。','拼不成一張臉——但你知道，你曾經是個會愛人的人。']; sub='不夠。明天你會再回來，再清一次。'; }
-      else { lines2=['你幾乎留下了全部。','你想起了他，想起了你，','想起你今晚簽字，要忘記自己。']; sub='知道，即是懲罰。'; }
+      if(clarity===0){ lines2=['你刪得又快又準。','一則都沒留。','你不記得你曾經是誰。']; sub='系統得到一名乾淨、穩定、再也不會悲傷的操作員。'; }
+      else if(clarity<60){ lines2=['你留下了幾則。','拼不成一張臉——','但你知道，你曾經是個會愛人的人。']; sub='不夠。明天你會再回來，再刪一次。'; }
+      else { lines2=['你幾乎全部留下了。','你想起了那個人，','也想起那個人，就是你。']; sub='知道，即是懲罰。'; }
       typeLines(lines2, function(){
         var s=document.createElement('p'); s.className='end-sub'; s.textContent=sub; stage.appendChild(s);
         var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
@@ -216,54 +223,46 @@
     });
   }
 
-  /* ---- script ---- */
-  var OBJ='<span class="redact">████</span>';
+  /* ---- script ----
+     Plays as an ordinary moderation shift on a public feed.
+     The tender posts are disguised as strangers'. Nothing says "you" / "a person" until the end. */
   var script=[
     { type:'sys', lines:[
       '夜間內容審核系統 · 已連線。',
-      '依準則審核殘留資料：違反 → <b>移除</b>；否則 → <b>核准</b>。',
-      '本班佇列：與一名已結案對象相關之殘留片段。',
-      '開始清理。'
+      '操作員 4477，晚安。今晚的佇列比較安靜。',
+      '依準則審核每一則：違反 → <b>移除</b>；否則 → <b>核准</b>。',
+      '開始。'
     ], btn:'載入佇列'},
 
-    // grounding: a real stranger violation — teaches the loop, low stakes
+    // clear policy violation — grounds the loop, feels like a normal job
     { type:'case', who:'陌生人', handle:'@lost_phone', t:'03:08', left:6,
       text:'有人在忠孝復興撿到一支手機嗎？我號碼 0912-000-333，裡面有很重要的照片。', breaks:['R1'], personal:false },
 
-    // personal fragments — all break R2, so "correct" = remove; but they are you
-    { type:'case', who:OBJ, handle:'殘留片段', t:'—', left:5, personal:true, breaks:['R2'],
-      text:'他總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒他。',
-      note:'依 R2，應移除。' },
+    // tender posts, disguised as strangers'. They violate R2 (nostalgia/grief) → "correct" is remove.
+    { type:'case', who:'夜貓', handle:'@late_bird', t:'03:14', left:5, personal:true, breaks:['R2'],
+      text:'他總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒他。', note:'依 R2，應移除。' },
 
-    { type:'case', who:OBJ, handle:'殘留片段', t:'—', left:4, personal:true, breaks:['R2'],
-      text:'打雷的晚上他會發抖，說只有這裡才安全。',
-      note:'依 R2，應移除。' },
+    { type:'case', who:'匿名', handle:'@anon', t:'03:19', left:4, personal:true, breaks:['R2'],
+      text:'打雷的晚上他會發抖，說只有這裡才安全。那時候我以為我們有很多時間。', note:'依 R2，應移除。' },
 
-    // abrasion: this fragment degrades based on how many personal ones you already deleted
-    { type:'case', who:OBJ, handle:'殘留片段', t:'—', left:3, personal:true, breaks:['R2'],
+    // abrasion: as you remove earlier posts, this one shows more "已依規定移除" gaps — looks like normal thread moderation
+    { type:'case', who:'路過', handle:'@passing', t:'03:24', left:3, personal:true, breaks:['R2'],
       text:function(deleted){
-        if(deleted>=2) return '照片裡，站在我旁邊的是<span class="redact">████████</span>。連笑容都<span class="redact">████</span>了。';
-        if(deleted>=1) return '照片裡，站在我旁邊的是<span class="redact">████</span>，笑得那麼——';
+        if(deleted>=2) return '照片裡，站在我旁邊的是<span class="redact">████</span>。〔本則多數內容已依規定移除〕';
+        if(deleted>=1) return '照片裡，他就站在我旁邊，笑得那麼——〔後略，部分內容已移除〕';
         return '照片裡，他就站在我旁邊，笑得那麼開心，好像那天永遠不會結束。';
-      },
-      note:'依 R2，應移除。' },
+      }, note:'依 R2，應移除。' },
 
-    // the flip: the "object" wrote this — at 02:58, before the shift. it's you.
-    { type:'case', who:OBJ, handle:'（02:58）', t:'02:58', left:2, personal:true, breaks:['R2'],
-      text:'他寫下：如果有一天，我發現我也在被審核，我會怎麼做？',
-      note:'此片段由對象本人建立，時間早於本班次。依 R2，應移除。' },
+    // a subtle, deniable seed: the author id happens to match yours
+    { type:'case', who:'使用者 4477', handle:'@op4477', t:'02:58', left:2, personal:true, breaks:['R2'],
+      text:'如果有一天，我發現我也在被審核，我會怎麼做？', note:'依 R2，應移除。' },
 
-    // system gaslight
-    { type:'sys', lines:[
-      '對象 '+OBJ+' 查無戶籍、查無紀錄。',
-      '你從未認識任何人。',
-      '以上皆為系統殘留錯誤。請繼續清理。'
-    ], btn:'繼續'},
+    // light job-pressure beat (no leak)
+    { type:'sys', lines:['系統提示：偵測到處理速度略為下降。','請維持效率。','佇列即將清空。'], btn:'繼續'},
 
-    // final personal fragment
-    { type:'case', who:OBJ, handle:'最後一則', t:'—', left:1, personal:true, breaks:['R2'],
-      text:'他最後說的那句話，現在只剩你記得了。要移除嗎？',
-      note:'佇列最後一項。依 R2，應移除。' },
+    // final tender post — devastating only in hindsight
+    { type:'case', who:'匿名', handle:'@anon', t:'03:41', left:1, personal:true, breaks:['R2'],
+      text:'如果哪天我不在了，希望還有人記得我笑起來的樣子。', note:'佇列最後一項。依 R2，應移除。' },
 
     { type:'end' }
   ];
