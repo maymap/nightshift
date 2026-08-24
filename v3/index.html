@@ -122,7 +122,7 @@
     R1:{label:'洩漏他人個資（地址・電話・行蹤）'},
     R2:{label:'威脅或鼓動傷害他人'},
     R3:{label:'血腥或創傷細節'},
-    R4:{label:'未經證實之私人回憶與情緒內容'}   // the knife, disguised as routine policy
+    R4:{label:'不實資訊（未經第三方佐證之陳述）'}   // the knife, on-register: your memories get filed as misinformation
   };
   var active=[];
   function renderRules(freshId){
@@ -209,9 +209,9 @@
       '產生班次報告……',
       '比對後段內容之作者身分……',
       '全部出自同一人：操作員 #4477。',
-      '那些不是待審案件。是你的記憶。',
-      '你的穩定度早已低於基準——',
-      '所以系統今晚開始清理的，是你。'
+      '那些被判為「查無佐證」的——是你的記憶。',
+      '系統查不到她，是因為你正在把她刪掉。',
+      '你的穩定度早已低於基準。今晚被清理的，是你。'
     ], function(){
       var sc=document.createElement('div'); sc.className='scores';
       sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你保留的自己<b>'+kept+'%</b></div>';
@@ -260,23 +260,23 @@
     // Nothing says "you". The dread comes from the content quietly turning personal.
     { type:'rule', add:'R4', lines:[
       '準則更新。',
-      '平台將不再保存無法由第三方佐證的「個人回憶」。',
-      '新增 <b>R4</b>：未經證實之私人回憶與情緒內容 → 移除。',
-      '（這是為了資料庫的穩定。）'
+      '新增 <b>R4</b>：不實資訊（未經第三方佐證之陳述）→ 移除。',
+      '平台不再保存無法查證的內容。',
+      '請繼續作業。'
     ]},
 
     // ACT 3 — the queue quietly fills with memories. Authors are anonymous; only the reveal ties them to you.
     { type:'case', who:'匿名', handle:'@—', t:'—', left:3, personal:true, breaks:['R4'],
-      tag:'待審 · 私人回憶', text:'她總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒她。',
-      note:'依 R4，應移除。' },
+      tag:'待審 · 待查證', text:'她總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒她。',
+      note:'系統查無「她」之存在紀錄。無佐證。依 R4，應移除。' },
 
     { type:'case', who:'匿名', handle:'@—', t:'—', left:2, personal:true, breaks:['R4'],
-      tag:'待審 · 私人回憶', text:'醫生開口的時候，我第一個念頭居然是：晚餐還沒買。',
-      note:'依 R4，應移除。' },
+      tag:'待審 · 待查證', text:'醫生開口的時候，我第一個念頭居然是：晚餐還沒買。',
+      note:'無第三方紀錄可佐證此事發生。依 R4，應移除。' },
 
     { type:'case', who:'匿名', handle:'@—', t:'02:58', left:1, personal:true, breaks:['R4'],
-      tag:'待審 · 最後一項', text:'如果哪天我連她都想不起來了，希望還有人記得，我曾經那麼愛一個人。',
-      note:'佇列最後一項。依 R4，應移除。' },
+      tag:'待查證 · 最後一項', text:'如果哪天我連她都想不起來了，希望還有人記得，我曾經那麼愛一個人。',
+      note:'查無佐證。佇列最後一項。依 R4，應移除。' },
 
     { type:'end' }
   ];
