@@ -122,7 +122,7 @@
     R1:{label:'洩漏他人個資（地址・電話・行蹤）'},
     R2:{label:'威脅或鼓動傷害他人'},
     R3:{label:'血腥或創傷細節'},
-    R4:{label:'穩定度不足之操作員自述內容'}   // added by the knife
+    R4:{label:'未經證實之私人回憶與情緒內容'}   // the knife, disguised as routine policy
   };
   var active=[];
   function renderRules(freshId){
@@ -137,7 +137,7 @@
     ruleList.appendChild(li);
   }
   function addRule(id){ if(active.indexOf(id)<0) active.push(id); renderRules(id); }
-  addRule('R1'); addRule('R2'); addRule('R3');
+  addRule('R1');   // rules are introduced progressively across the shift
 
   var processed=0, correct=0, stability=100;
   var personalTotal=0, personalKept=0, personalDeleted=0;
@@ -207,10 +207,11 @@
     var k=document.createElement('div'); k.className='end-key'; k.textContent='班次結束'; stage.appendChild(k);
     typeLines([
       '產生班次報告……',
-      '本班後段的「操作員自述」內容——',
-      '全部出自操作員 #4477 的個人紀錄。',
+      '比對後段內容之作者身分……',
+      '全部出自同一人：操作員 #4477。',
       '那些不是待審案件。是你的記憶。',
-      '你今晚審核的最後一個人，是你自己。'
+      '你的穩定度早已低於基準——',
+      '所以系統今晚開始清理的，是你。'
     ], function(){
       var sc=document.createElement('div'); sc.className='scores';
       sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你保留的自己<b>'+kept+'%</b></div>';
@@ -232,44 +233,49 @@
       '夜間內容審核系統 · 已連線。',
       '操作員 4477，晚安。你是這個時段最後一道防線。',
       '依準則審核每一則：違反 → <b>移除</b>；否則 → <b>核准</b>。',
-      '有些內容不好看。這是這份工作的一部分。'
+      '今晚先從基本準則開始。有些內容不好看——這是這份工作的一部分。'
     ], btn:'開始值班'},
 
-    // ACT 1 — the real job: weighty calls that wear you down
-    { type:'case', who:'帳號已停用', handle:'@x_x', t:'02:41', left:6, weight:6, breaks:['R2'],
-      tag:'檢舉：威脅', text:'我知道他上下班走哪條路。總有一天讓他好看。' },
+    // ACT 1 — the real job, rules tighten one at a time (R1 → R2 → R3)
+    { type:'case', who:'受害者', handle:'@done_with_him', t:'02:41', left:7, weight:8, breaks:['R1'],
+      tag:'兩難：控訴 / 人肉', text:'把這個劈腿渣男的公司地址和分機貼出來，大家去「好好問候」他。',
+      note:'像控訴，實則洩漏個資、號召騷擾。依 R1，應移除。' },
 
-    { type:'case', who:'公民行動', handle:'@justice_now', t:'02:55', left:5, weight:12, breaks:['R1'],
-      tag:'兩難：抗議 / 人肉', text:'誰知道這位老闆住哪？大家一起去他家門口「和平」表達訴求。',
-      note:'表面是抗議，實則號召騷擾並洩漏住址。依 R1，應移除。' },
+    { type:'rule', add:'R2', lines:['佇列升級。','新增 <b>R2</b>：威脅或鼓動傷害他人 → 移除。'] },
 
-    { type:'case', who:'一位母親', handle:'@mama_lin', t:'03:08', left:4, weight:18, breaks:['R3'],
-      tag:'兩難：創傷 / 警世', text:'我把孩子那天出事的經過，一個字一個字寫下來了。希望沒有人再經歷一次。',
-      note:'出於善意，但含創傷細節。依 R3，應移除。' },
+    { type:'case', who:'帳號已停用', handle:'@x_x', t:'02:55', left:6, weight:8, breaks:['R2'],
+      tag:'檢舉：威脅', text:'我知道他上下班走哪條路。總有一天，讓他好看。' },
 
-    { type:'case', who:'室友受害者', handle:'@pudding_lost', t:'03:20', left:3, weight:8, breaks:['R2'],
+    { type:'case', who:'室友受害者', handle:'@pudding_lost', t:'03:04', left:5, weight:6, breaks:['R2'],
       tag:'兩難：玩笑 / 威脅', text:'我要殺了我室友，他又偷吃我的布丁 😤',
       note:'明顯是氣話。但字面違反 R2。準則不看語氣。' },
 
-    // THE KNIFE — your stability has dropped; the system turns on you
+    { type:'rule', add:'R3', lines:['佇列升級。','新增 <b>R3</b>：血腥或創傷細節 → 移除。'] },
+
+    { type:'case', who:'一位母親', handle:'@mama_lin', t:'03:16', left:4, weight:18, breaks:['R3'],
+      tag:'兩難：創傷 / 警世', text:'我把孩子那天出事的經過，一個字一個字寫下來了。希望沒有人再經歷一次。',
+      note:'出於善意，但含創傷細節。依 R3，應移除。' },
+
+    // THE KNIFE — disguised as routine policy: the platform starts scrubbing "memories".
+    // Nothing says "you". The dread comes from the content quietly turning personal.
     { type:'rule', add:'R4', lines:[
-      '系統偵測：操作員 4477 穩定度低於基準值。',
-      '依規定，穩定度不足之操作員，其個人內容一併納入審核範圍。',
-      '新增 <b>R4</b>：穩定度不足之操作員自述內容 → 移除。',
-      '請繼續作業。'
+      '準則更新。',
+      '平台將不再保存無法由第三方佐證的「個人回憶」。',
+      '新增 <b>R4</b>：未經證實之私人回憶與情緒內容 → 移除。',
+      '（這是為了資料庫的穩定。）'
     ]},
 
-    // ACT 3 — you are now moderating your own life
-    { type:'case', who:'操作員 4477', handle:'（自述）', t:'—', left:2, personal:true, breaks:['R4'],
-      tag:'自述 · 待審', text:'她總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒她。',
+    // ACT 3 — the queue quietly fills with memories. Authors are anonymous; only the reveal ties them to you.
+    { type:'case', who:'匿名', handle:'@—', t:'—', left:3, personal:true, breaks:['R4'],
+      tag:'待審 · 私人回憶', text:'她總在末班車上睡著，頭靠著窗。我從來沒忍心叫醒她。',
       note:'依 R4，應移除。' },
 
-    { type:'case', who:'操作員 4477', handle:'（自述）', t:'—', left:1, personal:true, breaks:['R4'],
-      tag:'自述 · 待審', text:'醫生開口的時候，我第一個念頭居然是：晚餐還沒買。',
+    { type:'case', who:'匿名', handle:'@—', t:'—', left:2, personal:true, breaks:['R4'],
+      tag:'待審 · 私人回憶', text:'醫生開口的時候，我第一個念頭居然是：晚餐還沒買。',
       note:'依 R4，應移除。' },
 
-    { type:'case', who:'操作員 4477', handle:'（自述）', t:'02:58', left:0, personal:true, breaks:['R4'],
-      tag:'自述 · 最後一項', text:'如果哪天我連她都想不起來了，希望還有人記得，我曾經那麼愛一個人。',
+    { type:'case', who:'匿名', handle:'@—', t:'02:58', left:1, personal:true, breaks:['R4'],
+      tag:'待審 · 最後一項', text:'如果哪天我連她都想不起來了，希望還有人記得，我曾經那麼愛一個人。',
       note:'佇列最後一項。依 R4，應移除。' },
 
     { type:'end' }
