@@ -114,6 +114,11 @@
   .coll-row .cb{ width:100%; font-family:var(--sans); font-weight:300; color:var(--dim); font-size:13px; margin-top:2px; }
   .endbtns{ display:flex; gap:10px; flex-wrap:wrap; }
 
+  .overlay{ position:fixed; inset:0; z-index:20; background:rgba(4,6,7,.82); display:none; align-items:center; justify-content:center; padding:20px; }
+  .overlay.open{ display:flex; }
+  .overlay-panel{ background:var(--panel); border:1px solid var(--border); border-radius:2px; width:100%; max-width:560px; max-height:86vh; overflow:auto; padding:20px 20px 22px; }
+  .overlay-panel .oh{ font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--warn); margin-bottom:14px; }
+
   .bar button.mute{ background:transparent; border:none; cursor:pointer; font:inherit; font-size:14px; line-height:1; padding:0; margin-left:2px; opacity:.75; transition:opacity .16s, transform .16s; }
   .bar button.mute:hover{ opacity:1; transform:scale(1.1); }
   .bar button.mute:focus-visible{ outline:2px solid var(--phos); outline-offset:2px; }
@@ -131,7 +136,8 @@
 <body>
 <div class="machine" role="application" aria-label="深夜審核台">
   <div class="bar"><span class="dot"></span><span class="sys">NCMS</span><span>夜間內容審核</span>
-    <span class="spacer"></span><span>操作員&nbsp;#4477</span><span class="clock" id="clock">--:--:--</span><button class="mute" id="mute" type="button" aria-label="聲音開關">🔊</button></div>
+    <span class="spacer"></span><span>操作員&nbsp;#4477</span><span class="clock" id="clock">--:--:--</span><button class="mute" id="mute" type="button" aria-label="聲音開關">🔊</button><button class="mute" id="archive" type="button" aria-label="結局收集" title="結局收集" style="font-size:13px">▤</button></div>
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
   <div class="status">
     <div class="stat" id="acc"><div class="k">正確率</div><div class="v"><span id="accv">—</span></div></div>
     <div class="stat"><div class="k">待審</div><div class="v" id="queuev">—</div></div>
@@ -222,9 +228,10 @@
   };
   var ENDING_ORDER=['blank','echo','struggle','remember'];
 
-  function renderCollection(){
-    clr();
-    var head=document.createElement('div'); head.className='end-key'; head.textContent='結局收集　'+seenEndings.length+' / 4'; stage.appendChild(head);
+  var overlay=document.getElementById('overlay');
+  function openCollection(){
+    var panel=document.createElement('div'); panel.className='overlay-panel';
+    var oh=document.createElement('div'); oh.className='oh'; oh.textContent='結局收集　'+seenEndings.length+' / 4'; panel.appendChild(oh);
     var list=document.createElement('div'); list.className='coll-list';
     ENDING_ORDER.forEach(function(key){
       var e=ENDINGS[key], got=seenEndings.indexOf(key)>=0;
@@ -233,9 +240,13 @@
         '<span class="cb">'+(got?e.blurb:'未解鎖')+'</span>';
       list.appendChild(row);
     });
-    stage.appendChild(list);
-    var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
+    panel.appendChild(list);
+    var c=document.createElement('button'); c.className='cont'; c.textContent='關閉'; c.style.marginTop='18px'; c.onclick=closeCollection; panel.appendChild(c);
+    overlay.innerHTML=''; overlay.appendChild(panel); overlay.classList.add('open');
   }
+  function closeCollection(){ overlay.classList.remove('open'); }
+  document.getElementById('archive').addEventListener('click', function(e){ e.stopPropagation(); openCollection(); });
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) closeCollection(); });
   function setStab(n){ stability=Math.max(0,Math.min(100,n)); stabv.textContent=stability;
     stabBox.classList.toggle('low', stability<60); stabBox.classList.toggle('crit', stability<35); }
   function updateAcc(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; }
@@ -263,14 +274,7 @@
   function clr(){ stage.innerHTML=''; }
   function next(){ if(idx>=script.length) return; var s=script[idx++];
     if(s.type==='sys') sysStep(s); else if(s.type==='rule') ruleStep(s); else if(s.type==='case') caseStep(s); else if(s.type==='end') endStep(s); }
-  function sysStep(s){ clr(); var lines=s.linesFn?s.linesFn():s.lines; typeLines(lines,function(){
-    var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next;
-    if(s.collect && seenEndings.length>0){
-      var wrap=document.createElement('div'); wrap.className='endbtns'; wrap.appendChild(b);
-      var cv=document.createElement('button'); cv.className='cont'; cv.textContent='結局收集'; cv.onclick=renderCollection; wrap.appendChild(cv);
-      stage.appendChild(wrap);
-    } else stage.appendChild(b);
-  }); }
+  function sysStep(s){ clr(); var lines=s.linesFn?s.linesFn():s.lines; typeLines(lines,function(){ var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next; stage.appendChild(b); }); }
   function ruleStep(s){ clr(); typeLines(s.lines,function(){ addRule(s.add); var b=document.createElement('button'); b.className='cont'; b.textContent='了解'; b.onclick=next; stage.appendChild(b); }); }
 
   function caseStep(c){
@@ -373,10 +377,7 @@
         var col=document.createElement('p'); col.className='collection';
         col.textContent='已解鎖結局 '+seenEndings.length+' / 4：'+seenEndings.map(function(kk){return ENDINGS[kk]?ENDINGS[kk].title:kk;}).join('・');
         stage.appendChild(col);
-        var btns=document.createElement('div'); btns.className='endbtns';
-        var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; btns.appendChild(r);
-        var cv=document.createElement('button'); cv.className='cont'; cv.textContent='結局收集'; cv.onclick=renderCollection; btns.appendChild(cv);
-        stage.appendChild(btns);
+        var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
       });
     });
   }
@@ -384,7 +385,7 @@
   /* ---- the full shift: investigate + judge, rules tighten, then the knife ---- */
   var OBJ='匿名';
   var script=[
-    { type:'sys', btn:'開始值班', collect:true, linesFn:function(){ return returning ? [
+    { type:'sys', btn:'開始值班', linesFn:function(){ return returning ? [
       '夜間內容審核系統 · 已連線。',
       '歡迎回來，操作員 4477。你昨晚也坐在這個位子。',
       '你不記得了，對吧？沒關係——系統記得。',
