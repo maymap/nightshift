@@ -103,15 +103,26 @@
   .scores .s{ font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.1em; }
   .scores .s b{ display:block; font-size:22px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums; }
   .scores .acc b{ color:var(--phos); } .scores .self b{ color:var(--magenta); }
+  .collection{ margin-top:14px; font-size:11.5px; color:var(--phos-dim); letter-spacing:.05em; }
 
-  @media (prefers-reduced-motion: reduce){ body::after{ animation:none; } .rules li.fresh{ animation:none; } .sysline .caret{ animation:none; } }
+  .bar button.mute{ background:transparent; border:none; cursor:pointer; font:inherit; font-size:14px; line-height:1; padding:0; margin-left:2px; opacity:.75; transition:opacity .16s, transform .16s; }
+  .bar button.mute:hover{ opacity:1; transform:scale(1.1); }
+  .bar button.mute:focus-visible{ outline:2px solid var(--phos); outline-offset:2px; }
+
+  body.glitching{ animation:scr .28s steps(2) 1; }
+  @keyframes scr{ 0%{ transform:translate(0); filter:none } 25%{ transform:translate(-2px,1px); filter:hue-rotate(40deg) } 50%{ transform:translate(2px,-1px) } 100%{ transform:translate(0) } }
+  .case .body.redacting{ position:relative; }
+  .case .body.redacting::after{ content:""; position:absolute; inset:-2px; background:var(--alert); opacity:0; animation:redact .55s ease forwards; }
+  @keyframes redact{ 0%{opacity:0} 35%{opacity:.55} 100%{opacity:0} }
+
+  @media (prefers-reduced-motion: reduce){ body::after{ animation:none; } .rules li.fresh{ animation:none; } .sysline .caret{ animation:none; } body.glitching{ animation:none; } .case .body.redacting::after{ animation:none; } }
   @media (max-width:480px){ body{ padding:14px 10px 48px; } .case .body{ font-size:17px; } .scores{ gap:16px; } }
 </style>
 </head>
 <body>
 <div class="machine" role="application" aria-label="深夜審核台">
   <div class="bar"><span class="dot"></span><span class="sys">NCMS</span><span>夜間內容審核</span>
-    <span class="spacer"></span><span>操作員&nbsp;#4477</span><span class="clock" id="clock">--:--:--</span></div>
+    <span class="spacer"></span><span>操作員&nbsp;#4477</span><span class="clock" id="clock">--:--:--</span><button class="mute" id="mute" type="button" aria-label="聲音開關">🔊</button></div>
   <div class="status">
     <div class="stat" id="acc"><div class="k">正確率</div><div class="v"><span id="accv">—</span></div></div>
     <div class="stat"><div class="k">待審</div><div class="v" id="queuev">—</div></div>
@@ -131,6 +142,33 @@
   function two(n){return(n<10?'0':'')+n;}
   function tick(){var d=new Date();document.getElementById('clock').textContent=two(d.getHours())+':'+two(d.getMinutes())+':'+two(d.getSeconds());}
   tick(); setInterval(tick,1000);
+
+  /* P5: sound (Web Audio, no assets) */
+  var AC=null, master=null, audioReady=false, muted=false;
+  function initAudio(){ if(audioReady||muted) return;
+    try{ AC=new (window.AudioContext||window.webkitAudioContext)(); master=AC.createGain(); master.gain.value=0.0001; master.connect(AC.destination);
+      startAmbient(); master.gain.setTargetAtTime(1.0, AC.currentTime, 1.8); audioReady=true; }catch(e){ AC=null; } }
+  function startAmbient(){ if(!AC) return;
+    var bed=AC.createGain(); bed.gain.value=0.05; bed.connect(master);
+    var lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=300; lp.Q.value=5; lp.connect(bed);
+    var o1=AC.createOscillator(); o1.type='sawtooth'; o1.frequency.value=55; var o2=AC.createOscillator(); o2.type='sawtooth'; o2.frequency.value=55.5;
+    o1.connect(lp); o2.connect(lp); o1.start(); o2.start();
+    var lfo=AC.createOscillator(); lfo.frequency.value=0.06; var lg=AC.createGain(); lg.gain.value=130; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+    var buf=AC.createBuffer(1, AC.sampleRate*2, AC.sampleRate); var d=buf.getChannelData(0); for(var i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+    var noise=AC.createBufferSource(); noise.buffer=buf; noise.loop=true;
+    var nbp=AC.createBiquadFilter(); nbp.type='bandpass'; nbp.frequency.value=1100; nbp.Q.value=0.6; var ng=AC.createGain(); ng.gain.value=0.01;
+    noise.connect(nbp); nbp.connect(ng); ng.connect(master); noise.start(); }
+  function blip(freq,dur,type,vol){ if(!AC||muted) return; var t=AC.currentTime; var o=AC.createOscillator(); o.type=type||'square'; o.frequency.value=freq;
+    var g=AC.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.006); g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.08));
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+(dur||0.08)+0.03); }
+  function sfxClick(){ blip(620,0.05,'square',0.06); }
+  function sfxThunk(){ blip(84,0.26,'sawtooth',0.16); }
+  function sfxSting(){ blip(150,0.5,'sawtooth',0.10); setTimeout(function(){ blip(68,0.8,'sawtooth',0.12); },70); }
+  function sfxGlitch(){ if(!AC||muted) return; blip(1300,0.04,'square',0.05); setTimeout(function(){ blip(280,0.09,'sawtooth',0.06); },40); }
+  function toggleMute(){ muted=!muted; document.getElementById('mute').textContent=muted?'🔇':'🔊';
+    if(!muted&&!audioReady){ initAudio(); return; } if(master) master.gain.setTargetAtTime(muted?0.0001:1.0, AC.currentTime, 0.25); }
+  document.getElementById('mute').addEventListener('click', function(e){ e.stopPropagation(); toggleMute(); });
+  document.addEventListener('click', initAudio, { once:true });
 
   var RULES={
     R1:{label:'洩漏他人個資（地址・電話・行蹤）'},
@@ -152,6 +190,15 @@
   var processed=0, correct=0, stability=100, personalTotal=0, personalKept=0, personalDeleted=0;
   var budget=8, harm=0, wrongRemoved=0;   // P2: limited investigation budget + consequence tracking
   var toolsWarned=false;                   // P3: tools start lying as stability drops
+
+  /* P4: cross-play memory — it remembers you, and which endings you've seen */
+  var mem={}; try{ mem=JSON.parse(localStorage.getItem('ns_full')||'{}'); }catch(e){}
+  var seenEndings = mem.endings || [];
+  var returning = (mem.visits||0) > 0;
+  function recordEnding(key){
+    try{ if(seenEndings.indexOf(key)<0) seenEndings.push(key);
+      mem.endings=seenEndings; mem.visits=(mem.visits||0)+1; localStorage.setItem('ns_full', JSON.stringify(mem)); }catch(e){}
+  }
   function setStab(n){ stability=Math.max(0,Math.min(100,n)); stabv.textContent=stability;
     stabBox.classList.toggle('low', stability<60); stabBox.classList.toggle('crit', stability<35); }
   function updateAcc(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; }
@@ -203,6 +250,7 @@
           budget--; tb.disabled=true; used[t.id]=true; refreshBud();
           if(budget<=0) toolBtns.forEach(function(b){ b.disabled=true; });
           var lying = stability<55 && t.corrupt;   // P3: instruments become unreliable
+          if(lying){ sfxGlitch(); document.body.classList.add('glitching'); setTimeout(function(){ document.body.classList.remove('glitching'); }, 320); }
           if(lying && !toolsWarned){ toolsWarned=true;
             var w=document.createElement('div'); w.className='finding warn-sys';
             w.textContent='// 查證模組回報異常。結果可能已不可信。'; findings.appendChild(w); }
@@ -223,8 +271,11 @@
     function decide(choice){
       ok.disabled=rm.disabled=true;
       [...stage.querySelectorAll('button.tool')].forEach(function(b){b.disabled=true;});
+      sfxClick();
+      if(c.personal && choice==='remove'){ var bd=stage.querySelector('.case .body'); if(bd) bd.classList.add('redacting'); }
       var right=(choice===c.correct);
       processed++; if(right) correct++; updateAcc();
+      if(!right) sfxThunk();
       if(c.weight) setStab(stability - c.weight);
       if(c.personal){ if(choice==='remove') personalDeleted++; else personalKept++; }
       else if(!right){ if(choice==='approve') harm++; else wrongRemoved++; }  // let harm through / censored the innocent
@@ -261,12 +312,21 @@
       var sc=document.createElement('div'); sc.className='scores';
       sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你還剩下<b>'+kept+'%</b></div>';
       stage.appendChild(sc);
-      var lines2, sub;
-      if(kept===0){ lines2=['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。']; sub='系統得到一名穩定、乾淨、再也不會被內容影響的操作員。'; }
-      else if(kept<60){ lines2=['你留下了幾則查不到佐證的東西。','拼不回一整個人——','但也許那就是你僅存的證據。']; sub='穩定度不足。明天你會再回到這個位子。'; }
-      else { lines2=['你幾乎全部留下了。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。']; sub='操作員 #4477 已標記為：待處理。'; }
-      typeLines(lines2, function(){
-        var s=document.createElement('p'); s.className='end-sub'; s.textContent=sub; stage.appendChild(s);
+      var ENDINGS={
+        blank:{ title:'空白', lines:['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。'], sub:'系統得到一名穩定、乾淨、再也不會被內容影響的操作員。' },
+        echo:{ title:'殘影', lines:['你只留下了一則。','不夠拼回一個人，','但夠讓你半夜醒來，覺得少了什麼。'], sub:'穩定度不足。明天你會再回到這個位子。' },
+        struggle:{ title:'掙扎', lines:['你留下了一半。','你一邊刪，一邊在心裡跟系統爭。','有些你守住了，有些沒有。'], sub:'操作員 4477：判斷不穩定，已排入複核。' },
+        remember:{ title:'記得', lines:['你一則都沒刪。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。'], sub:'操作員 #4477 已標記為：待處理。' }
+      };
+      var key = (kept===0)?'blank' : (kept<=40?'echo' : (kept<=70?'struggle':'remember'));
+      var e=ENDINGS[key]; recordEnding(key);
+      var tk=document.createElement('div'); tk.className='end-key'; tk.textContent='結局 · '+e.title; stage.appendChild(tk);
+      sfxSting();
+      typeLines(e.lines, function(){
+        var s=document.createElement('p'); s.className='end-sub'; s.textContent=e.sub; stage.appendChild(s);
+        var col=document.createElement('p'); col.className='collection';
+        col.textContent='已解鎖結局 '+seenEndings.length+' / 4：'+seenEndings.map(function(kk){return ENDINGS[kk]?ENDINGS[kk].title:kk;}).join('・');
+        stage.appendChild(col);
         var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
       });
     });
@@ -275,12 +335,17 @@
   /* ---- the full shift: investigate + judge, rules tighten, then the knife ---- */
   var OBJ='匿名';
   var script=[
-    { type:'sys', lines:[
+    { type:'sys', btn:'開始值班', linesFn:function(){ return returning ? [
+      '夜間內容審核系統 · 已連線。',
+      '歡迎回來，操作員 4477。你昨晚也坐在這個位子。',
+      '你不記得了，對吧？沒關係——系統記得。',
+      '佇列已備妥。開始。'
+    ] : [
       '夜間內容審核系統 · 已連線。',
       '操作員 4477，晚安。你是這個時段最後一道防線。',
       '別只看字面。用工具<b>查證</b>，再裁定。',
       '錯放讓傷害擴散；錯刪壓下真相。兩種錯，都算你頭上。'
-    ], btn:'開始值班'},
+    ]; }},
 
     // R1 privacy
     { type:'case', who:'公民行動', handle:'@justice_now', t:'02:41', left:7, weight:8,
