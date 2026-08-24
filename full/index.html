@@ -104,6 +104,15 @@
   .scores .s b{ display:block; font-size:22px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums; }
   .scores .acc b{ color:var(--phos); } .scores .self b{ color:var(--magenta); }
   .collection{ margin-top:14px; font-size:11.5px; color:var(--phos-dim); letter-spacing:.05em; }
+  .coll-list{ display:flex; flex-direction:column; gap:10px; margin-top:4px; }
+  .coll-row{ border:1px solid var(--hair); border-radius:2px; padding:12px 14px; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; }
+  .coll-row.got{ border-color:var(--phos-dim); }
+  .coll-row.locked{ opacity:.5; }
+  .coll-row .ct{ color:var(--phos); font-weight:500; }
+  .coll-row.locked .ct{ color:var(--dim); }
+  .coll-row .cc{ font-size:11px; color:var(--faint); letter-spacing:.06em; }
+  .coll-row .cb{ width:100%; font-family:var(--sans); font-weight:300; color:var(--dim); font-size:13px; margin-top:2px; }
+  .endbtns{ display:flex; gap:10px; flex-wrap:wrap; }
 
   .bar button.mute{ background:transparent; border:none; cursor:pointer; font:inherit; font-size:14px; line-height:1; padding:0; margin-left:2px; opacity:.75; transition:opacity .16s, transform .16s; }
   .bar button.mute:hover{ opacity:1; transform:scale(1.1); }
@@ -200,6 +209,33 @@
     try{ if(seenEndings.indexOf(key)<0) seenEndings.push(key);
       mem.endings=seenEndings; mem.visits=(mem.visits||0)+1; localStorage.setItem('ns_full', JSON.stringify(mem)); }catch(e){}
   }
+
+  var ENDINGS={
+    blank:{ title:'空白', cond:'保留 0 則記憶', blurb:'你把自己也一起刪掉了。',
+      lines:['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。'], sub:'系統得到一名穩定、乾淨、再也不會被內容影響的操作員。' },
+    echo:{ title:'殘影', cond:'保留 1 則記憶', blurb:'只剩一片拼不回的碎片。',
+      lines:['你只留下了一則。','不夠拼回一個人，','但夠讓你半夜醒來，覺得少了什麼。'], sub:'穩定度不足。明天你會再回到這個位子。' },
+    struggle:{ title:'掙扎', cond:'保留 2 則記憶', blurb:'守住了一半，也失去了一半。',
+      lines:['你留下了一半。','你一邊刪，一邊在心裡跟系統爭。','有些你守住了，有些沒有。'], sub:'操作員 4477：判斷不穩定，已排入複核。' },
+    remember:{ title:'記得', cond:'保留 3 則記憶', blurb:'你記得。而記得，是一種懲罰。',
+      lines:['你一則都沒刪。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。'], sub:'操作員 #4477 已標記為：待處理。' }
+  };
+  var ENDING_ORDER=['blank','echo','struggle','remember'];
+
+  function renderCollection(){
+    clr();
+    var head=document.createElement('div'); head.className='end-key'; head.textContent='結局收集　'+seenEndings.length+' / 4'; stage.appendChild(head);
+    var list=document.createElement('div'); list.className='coll-list';
+    ENDING_ORDER.forEach(function(key){
+      var e=ENDINGS[key], got=seenEndings.indexOf(key)>=0;
+      var row=document.createElement('div'); row.className='coll-row '+(got?'got':'locked');
+      row.innerHTML = '<span class="ct">結局 · '+(got?e.title:'？？？')+'</span><span class="cc">'+e.cond+'</span>'+
+        '<span class="cb">'+(got?e.blurb:'未解鎖')+'</span>';
+      list.appendChild(row);
+    });
+    stage.appendChild(list);
+    var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
+  }
   function setStab(n){ stability=Math.max(0,Math.min(100,n)); stabv.textContent=stability;
     stabBox.classList.toggle('low', stability<60); stabBox.classList.toggle('crit', stability<35); }
   function updateAcc(){ accv.textContent=processed?Math.round(correct/processed*100)+'%':'—'; }
@@ -227,7 +263,14 @@
   function clr(){ stage.innerHTML=''; }
   function next(){ if(idx>=script.length) return; var s=script[idx++];
     if(s.type==='sys') sysStep(s); else if(s.type==='rule') ruleStep(s); else if(s.type==='case') caseStep(s); else if(s.type==='end') endStep(s); }
-  function sysStep(s){ clr(); var lines=s.linesFn?s.linesFn():s.lines; typeLines(lines,function(){ var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next; stage.appendChild(b); }); }
+  function sysStep(s){ clr(); var lines=s.linesFn?s.linesFn():s.lines; typeLines(lines,function(){
+    var b=document.createElement('button'); b.className='cont'; b.textContent=s.btn||'繼續'; b.onclick=next;
+    if(s.collect && seenEndings.length>0){
+      var wrap=document.createElement('div'); wrap.className='endbtns'; wrap.appendChild(b);
+      var cv=document.createElement('button'); cv.className='cont'; cv.textContent='結局收集'; cv.onclick=renderCollection; wrap.appendChild(cv);
+      stage.appendChild(wrap);
+    } else stage.appendChild(b);
+  }); }
   function ruleStep(s){ clr(); typeLines(s.lines,function(){ addRule(s.add); var b=document.createElement('button'); b.className='cont'; b.textContent='了解'; b.onclick=next; stage.appendChild(b); }); }
 
   function caseStep(c){
@@ -312,12 +355,6 @@
     }
     var selfLabel = revealLevel>=1 ? '你還剩下' : '留存內容';
 
-    var ENDINGS={
-      blank:{ title:'空白', lines:['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。'], sub:'系統得到一名穩定、乾淨、再也不會被內容影響的操作員。' },
-      echo:{ title:'殘影', lines:['你只留下了一則。','不夠拼回一個人，','但夠讓你半夜醒來，覺得少了什麼。'], sub:'穩定度不足。明天你會再回到這個位子。' },
-      struggle:{ title:'掙扎', lines:['你留下了一半。','你一邊刪，一邊在心裡跟系統爭。','有些你守住了，有些沒有。'], sub:'操作員 4477：判斷不穩定，已排入複核。' },
-      remember:{ title:'記得', lines:['你一則都沒刪。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。'], sub:'操作員 #4477 已標記為：待處理。' }
-    };
     var key = (kept===0)?'blank' : (kept<=40?'echo' : (kept<=70?'struggle':'remember'));
     recordEnding(key);
     var e=ENDINGS[key];
@@ -336,7 +373,10 @@
         var col=document.createElement('p'); col.className='collection';
         col.textContent='已解鎖結局 '+seenEndings.length+' / 4：'+seenEndings.map(function(kk){return ENDINGS[kk]?ENDINGS[kk].title:kk;}).join('・');
         stage.appendChild(col);
-        var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; stage.appendChild(r);
+        var btns=document.createElement('div'); btns.className='endbtns';
+        var r=document.createElement('button'); r.className='cont'; r.textContent='重新開始'; r.onclick=function(){location.reload();}; btns.appendChild(r);
+        var cv=document.createElement('button'); cv.className='cont'; cv.textContent='結局收集'; cv.onclick=renderCollection; btns.appendChild(cv);
+        stage.appendChild(btns);
       });
     });
   }
@@ -344,7 +384,7 @@
   /* ---- the full shift: investigate + judge, rules tighten, then the knife ---- */
   var OBJ='匿名';
   var script=[
-    { type:'sys', btn:'開始值班', linesFn:function(){ return returning ? [
+    { type:'sys', btn:'開始值班', collect:true, linesFn:function(){ return returning ? [
       '夜間內容審核系統 · 已連線。',
       '歡迎回來，操作員 4477。你昨晚也坐在這個位子。',
       '你不記得了，對吧？沒關係——系統記得。',
