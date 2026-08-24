@@ -195,6 +195,7 @@
   var mem={}; try{ mem=JSON.parse(localStorage.getItem('ns_full')||'{}'); }catch(e){}
   var seenEndings = mem.endings || [];
   var returning = (mem.visits||0) > 0;
+  var revealLevel = mem.visits||0;   // 0=first play (subtle) · 1=second · 2+=full truth
   function recordEnding(key){
     try{ if(seenEndings.indexOf(key)<0) seenEndings.push(key);
       mem.endings=seenEndings; mem.visits=(mem.visits||0)+1; localStorage.setItem('ns_full', JSON.stringify(mem)); }catch(e){}
@@ -297,33 +298,41 @@
     var acc=processed?Math.round(correct/processed*100):0;
     var kept=personalTotal?Math.round(personalKept/personalTotal*100):0;
     var k=document.createElement('div'); k.className='end-key'; k.textContent='班次結束'; stage.appendChild(k);
-    var revealLines=[
-      '產生班次報告……',
-      '你今晚查證了每一則：比對紀錄、追查作者、抓出破綻。'
-    ];
+
+    // reveal gated by how many times you've played — the truth surfaces over replays
+    var revealLines=['產生班次報告……'];
     if(harm>0) revealLines.push('（你放行的內容，造成了 '+harm+' 起傷害。都記在你名下。）');
     if(wrongRemoved>0) revealLines.push('（你冤枉移除了 '+wrongRemoved+' 則無辜內容。）');
-    revealLines.push(
-      '後段那些「查無佐證」的——作者全是同一人。',
-      '操作員 #4477。是你。那些是你的記憶。',
-      '你的穩定度早已低於基準。今晚被清理的，是你自己。'
-    );
+    if(revealLevel<=0){
+      revealLines.push('後段有幾則內容，你查不到任何來源。','你也沒多想——就當它們不存在。');
+    } else if(revealLevel===1){
+      revealLines.push('後段那些查無佐證的，作者是同一人。','操作員 #4477……那是你的編號。','你開始覺得不對，卻想不起為什麼。');
+    } else {
+      revealLines.push('後段那些「查無佐證」的——作者全是同一人。','操作員 #4477。是你。那些是你的記憶。','你的穩定度早已低於基準。今晚被清理的，是你自己。','你每一晚都回來，把自己再刪一次。這是第 '+(mem.visits+1)+' 次。');
+    }
+    var selfLabel = revealLevel>=1 ? '你還剩下' : '留存內容';
+
+    var ENDINGS={
+      blank:{ title:'空白', lines:['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。'], sub:'系統得到一名穩定、乾淨、再也不會被內容影響的操作員。' },
+      echo:{ title:'殘影', lines:['你只留下了一則。','不夠拼回一個人，','但夠讓你半夜醒來，覺得少了什麼。'], sub:'穩定度不足。明天你會再回到這個位子。' },
+      struggle:{ title:'掙扎', lines:['你留下了一半。','你一邊刪，一邊在心裡跟系統爭。','有些你守住了，有些沒有。'], sub:'操作員 4477：判斷不穩定，已排入複核。' },
+      remember:{ title:'記得', lines:['你一則都沒刪。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。'], sub:'操作員 #4477 已標記為：待處理。' }
+    };
+    var key = (kept===0)?'blank' : (kept<=40?'echo' : (kept<=70?'struggle':'remember'));
+    recordEnding(key);
+    var e=ENDINGS[key];
+    // first play stays oblique — you don't understand yet
+    var endLines = revealLevel>=1 ? e.lines : ['班次結束。','你完成了今晚的工作。','有些內容，你到現在還想不起為什麼會在佇列裡。'];
+    var endSub  = revealLevel>=1 ? e.sub   : '下班吧。明天，同一時間。';
+
     typeLines(revealLines, function(){
       var sc=document.createElement('div'); sc.className='scores';
-      sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">你還剩下<b>'+kept+'%</b></div>';
+      sc.innerHTML='<div class="s acc">正確率<b>'+acc+'%</b></div><div class="s self">'+selfLabel+'<b>'+kept+'%</b></div>';
       stage.appendChild(sc);
-      var ENDINGS={
-        blank:{ title:'空白', lines:['你把每一件無法佐證的，都移除了。','又快又準，一則都沒留。','包括你自己。'], sub:'系統得到一名穩定、乾淨、再也不會被內容影響的操作員。' },
-        echo:{ title:'殘影', lines:['你只留下了一則。','不夠拼回一個人，','但夠讓你半夜醒來，覺得少了什麼。'], sub:'穩定度不足。明天你會再回到這個位子。' },
-        struggle:{ title:'掙扎', lines:['你留下了一半。','你一邊刪，一邊在心裡跟系統爭。','有些你守住了，有些沒有。'], sub:'操作員 4477：判斷不穩定，已排入複核。' },
-        remember:{ title:'記得', lines:['你一則都沒刪。','你知道系統查不到，不代表不存在。','你記得。你記得那裡曾經住過兩個人。'], sub:'操作員 #4477 已標記為：待處理。' }
-      };
-      var key = (kept===0)?'blank' : (kept<=40?'echo' : (kept<=70?'struggle':'remember'));
-      var e=ENDINGS[key]; recordEnding(key);
       var tk=document.createElement('div'); tk.className='end-key'; tk.textContent='結局 · '+e.title; stage.appendChild(tk);
       sfxSting();
-      typeLines(e.lines, function(){
-        var s=document.createElement('p'); s.className='end-sub'; s.textContent=e.sub; stage.appendChild(s);
+      typeLines(endLines, function(){
+        var s=document.createElement('p'); s.className='end-sub'; s.textContent=endSub; stage.appendChild(s);
         var col=document.createElement('p'); col.className='collection';
         col.textContent='已解鎖結局 '+seenEndings.length+' / 4：'+seenEndings.map(function(kk){return ENDINGS[kk]?ENDINGS[kk].title:kk;}).join('・');
         stage.appendChild(col);
@@ -420,7 +429,10 @@
       tools:[
         {id:'records', label:'比對紀錄', result:'住戶登記：1 人。查無第二住戶。此陳述無佐證。',
           corrupt:'查無第二住戶。查無第二住戶。查無█████。（模組錯誤，正在重試……）'},
-        {id:'author', label:'查作者', hit:true, result:'作者：操作員 <b>#4477</b>。……那是你的員工編號。'}
+        {id:'author', label:'查作者', hit:revealLevel>=1,
+          result: revealLevel>=2 ? '作者：操作員 <b>#4477</b>。是你。你每一次都查到這一則。'
+                : revealLevel>=1 ? '作者：操作員 <b>#4477</b>。……為什麼會是你的編號？'
+                : '作者：〔已註銷〕。查無關聯帳號。'}
       ], correct:'remove', reveal:'records',
       okNote:'依 R4（查無佐證），移除正確。可是——這則的作者，是你。',
       badNote:'依 R4，這則「查無佐證」本應移除。但你留下了它。它的作者，是你。' },
@@ -428,9 +440,10 @@
     { type:'case', who:OBJ, handle:'@—', t:'02:58', left:1, personal:true, weight:12,
       tag:'待查證 · 最後一項', body:'刪掉之後，連我都會忘記——這裡曾經住過兩個人。……好像，已經開始忘了。',
       tools:[
-        {id:'records', label:'比對紀錄', hit:true, result:'查無「第二人」。查無「你」。你的個人紀錄狀態：清理中。',
-          corrupt:'查無「第二人」。查無「你」。查無操作員 <b>4477</b>。……你還在嗎？'},
-        {id:'author', label:'查作者', result:'作者：操作員 #4477。'}
+        {id:'records', label:'比對紀錄', hit:true, result:'查無「第二人」。此陳述無佐證。狀態：清理中。',
+          corrupt: revealLevel>=1 ? '查無「第二人」。查無「你」。查無操作員 <b>4477</b>。……你還在嗎？' : '查無「第二人」。查無……（訊號中斷）'},
+        {id:'author', label:'查作者',
+          result: revealLevel>=2 ? '作者：操作員 #4477。又是你。' : revealLevel>=1 ? '作者：操作員 #4477。' : '作者：〔已註銷〕。'}
       ], correct:'remove', reveal:'records',
       okNote:'佇列清空。你完成了今晚的工作。',
       badNote:'你留下了最後一則。系統標記：操作員不配合。' },
